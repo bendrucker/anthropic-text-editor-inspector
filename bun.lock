@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "livedoc",
+      "name": "anthropic-text-editor-inspector",
       "dependencies": {
         "@anthropic-ai/sdk": "^0.117.1",
         "@radix-ui/react-popover": "^1.1.23",
