@@ -64,6 +64,7 @@ export function ToolSetup(props: ToolSetupProps) {
           <button
             key={entry.key}
             onClick={() => setters[entry.key](!on)}
+            aria-pressed={on}
             disabled={props.disabled}
             title={entry.title}
             className={`rounded-md border px-2 py-0.5 text-[11px] font-medium transition disabled:opacity-40 ${

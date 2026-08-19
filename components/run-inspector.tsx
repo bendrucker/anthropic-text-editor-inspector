@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import * as Tabs from '@radix-ui/react-tabs'
 import type { BufferState, TimelineEntry } from '@/lib/timeline'
 import type { Match } from '@/lib/str-replace'
 import type { Probe } from '@/lib/traps'
@@ -85,32 +86,37 @@ export function RunInspector({
             )}
           </div>
 
-          <div className="flex min-h-0 flex-col border-l border-slate-200">
-            <div className="flex shrink-0 gap-1 border-b border-slate-200 px-3 py-1.5">
-              {(['buffer', 'matcher'] as Panel[]).map((option) => (
-                <button
-                  key={option}
-                  onClick={() => setPanel(option)}
-                  className={`rounded px-2 py-0.5 text-[11px] font-medium transition ${
-                    panel === option
-                      ? 'bg-slate-200 text-slate-700'
-                      : 'text-slate-400 hover:text-slate-600'
-                  }`}
-                >
-                  {option === 'buffer' ? 'Input buffer' : 'Matcher'}
-                </button>
-              ))}
-            </div>
+          <Tabs.Root
+            value={panel}
+            onValueChange={(next) => setPanel(next as Panel)}
+            className="flex min-h-0 flex-col border-l border-slate-200"
+          >
+            <Tabs.List className="flex shrink-0 gap-1 border-b border-slate-200 px-3 py-1.5">
+              <PanelTab value="buffer">Input buffer</PanelTab>
+              <PanelTab value="matcher">Matcher</PanelTab>
+            </Tabs.List>
 
-            {panel === 'buffer' ? (
+            <Tabs.Content value="buffer" className="flex min-h-0 flex-1 flex-col">
               <BufferPanel buffer={buffer} />
-            ) : (
+            </Tabs.Content>
+            <Tabs.Content value="matcher" className="flex min-h-0 flex-1 flex-col">
               <MatchSandbox canonical={canonical} probes={probes} onShowMatches={onShowMatches} />
-            )}
-          </div>
+            </Tabs.Content>
+          </Tabs.Root>
         </div>
       )}
     </section>
+  )
+}
+
+function PanelTab({ value, children }: { value: Panel; children: string }) {
+  return (
+    <Tabs.Trigger
+      value={value}
+      className="rounded px-2 py-0.5 text-[11px] font-medium text-slate-400 transition hover:text-slate-600 data-[state=active]:bg-slate-200 data-[state=active]:text-slate-700"
+    >
+      {children}
+    </Tabs.Trigger>
   )
 }
 

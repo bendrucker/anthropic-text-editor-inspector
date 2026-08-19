@@ -4,7 +4,7 @@ import StarterKit from '@tiptap/starter-kit'
 import { TableKit } from '@tiptap/extension-table'
 import { Markdown } from '@tiptap/markdown'
 import { StreamHighlight } from '@/lib/stream-highlight'
-import { SelectionBubble } from './selection-bubble'
+import { SelectionEdit } from './selection-edit'
 
 interface DocumentPaneProps {
   initialMarkdown: string
@@ -46,7 +46,7 @@ export function DocumentPane({ initialMarkdown, locked, onEditor, onAskAboutSele
         )}
       </div>
 
-      {editor && !locked && <SelectionBubble editor={editor} onAsk={onAskAboutSelection} />}
+      {editor && !locked && <SelectionEdit editor={editor} onAsk={onAskAboutSelection} />}
     </div>
   )
 }
