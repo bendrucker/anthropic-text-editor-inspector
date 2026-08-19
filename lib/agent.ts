@@ -161,6 +161,43 @@ export function createClient(apiKey: string) {
   })
 }
 
+/**
+ * Drops assistant tool calls that never received a result.
+ *
+ * A turn that stops for any reason other than `tool_use` can still carry a
+ * `tool_use` block, which `max_tokens` mid-call is the usual way to produce.
+ * The API rejects a later request whose history holds a tool call with no
+ * matching result, so keeping one poisons every request that follows.
+ */
+export function stripDanglingToolUse(turns: readonly ConversationTurn[]): ConversationTurn[] {
+  const answered = new Set<string>()
+
+  for (const turn of turns) {
+    if (turn.role !== 'user' || typeof turn.content === 'string') continue
+    for (const block of turn.content) {
+      if (block.type === 'tool_result') answered.add(block.tool_use_id)
+    }
+  }
+
+  const kept: ConversationTurn[] = []
+
+  for (const turn of turns) {
+    if (turn.role !== 'assistant' || typeof turn.content === 'string') {
+      kept.push(turn)
+      continue
+    }
+
+    const content = turn.content.filter(
+      (block) => block.type !== 'tool_use' || answered.has(block.id),
+    )
+
+    // An assistant turn left with no content at all is itself invalid.
+    if (content.length > 0) kept.push({ ...turn, content })
+  }
+
+  return kept
+}
+
 export async function runEdit(options: RunOptions): Promise<void> {
   const { apiKey, document, prompt, signal, handlers } = options
   const effort = options.effort ?? DEFAULT_EFFORT
@@ -321,7 +358,7 @@ export async function runEdit(options: RunOptions): Promise<void> {
         model: model.id,
         fastMode,
         effort: model.supportsEffort ? effort : 'auto',
-        history: [...history],
+        history: stripDanglingToolUse(history),
       })
       return
     }
