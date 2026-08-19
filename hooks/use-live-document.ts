@@ -1,6 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Editor } from '@tiptap/react'
 import { serialize, parse } from '@/lib/markdown'
+import { DEFAULT_DOCUMENT, findDocument, type LibraryDocument } from '@/lib/library'
+import { generateDocument } from '@/lib/generate-document'
+import { deriveTraps, deriveProbes } from '@/lib/traps'
 import { locateEdit } from '@/lib/str-replace'
 import { resolveTarget, findTextRanges, type EditTarget } from '@/lib/positions'
 import type { Match } from '@/lib/str-replace'
@@ -55,6 +58,8 @@ export function useLiveDocument() {
   const editorRef = useRef<Editor | null>(null)
   const streams = useRef(new Map<string, StreamState>())
 
+  const [document, setDocument] = useState<LibraryDocument>(DEFAULT_DOCUMENT)
+  const [generated, setGenerated] = useState<LibraryDocument[]>([])
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [edits, setEdits] = useState<EditRecord[]>([])
   const [running, setRunning] = useState(false)
@@ -463,18 +468,72 @@ export function useLiveDocument() {
   }, [highlight])
 
   /**
-   * Drops the conversation. Anything that replaces the document underneath the
-   * chat has to call this, or the next request explains an edit to a document
-   * that is no longer on screen.
+   * Loads a document and clears everything that described the previous one. The
+   * timeline, buffer, edits, and recording are all readings of a run against a
+   * document that is no longer open, so none of them survive the switch.
+   *
+   * This is the only place a document swap resets state. Conversation history
+   * belongs here too, since a model told about the previous document explains
+   * edits to text nobody can see any more.
    */
-  const clearConversation = useCallback(() => {
-    conversation.current = []
-    setMessages([])
-  }, [])
+  const open = useCallback(
+    (next: LibraryDocument) => {
+      if (running) return
+
+      cancelReplay()
+      streams.current.clear()
+      recording.current = null
+      conversation.current = []
+
+      setDocument(next)
+      setMessages([])
+      setEdits([])
+      setRuns([])
+      setTimeline([])
+      setBuffer(null)
+      setRecorded(false)
+      setTimeToFirstEdit(null)
+      setError(null)
+
+      const editor = editorRef.current
+      editor?.commands.setContent(parse(next.markdown), { emitUpdate: false })
+      highlight(null)
+    },
+    [running, cancelReplay, highlight],
+  )
+
+  const selectDocument = useCallback(
+    (id: string) => {
+      const next = findDocument(id) ?? generated.find((entry) => entry.id === id)
+      if (next) open(next)
+    },
+    [generated, open],
+  )
+
+  const generate = useCallback(() => {
+    const next = generateDocument(Math.floor(Math.random() * 100_000))
+    setGenerated((prior) => [...prior, next])
+    open(next)
+  }, [open])
+
+  /**
+   * Traps come from the document rather than from a list beside it, so a
+   * generated document gets real ones. `deriveTraps` verifies each against the
+   * matcher, and the library's documents are canonical by the roundtrip check.
+   */
+  const traps = useMemo(() => deriveTraps(document.markdown), [document])
+
+  /** Matcher presets, built from the same document so each rejection is reachable. */
+  const probes = useMemo(() => deriveProbes(document.markdown, traps), [document, traps])
 
   return {
+    document,
+    generated,
+    selectDocument,
+    generate,
+    traps,
+    probes,
     setEditor,
-    clearConversation,
     currentMarkdown,
     messages,
     edits,
