@@ -6,7 +6,7 @@ import { resolveTarget, findTextRanges, type EditTarget } from '@/lib/positions'
 import type { Match } from '@/lib/str-replace'
 import { streamHighlightKey, type HighlightRange } from '@/lib/stream-highlight'
 import { DEFAULT_MODEL, findModel, DEFAULT_EFFORT, type EffortChoice } from '@/lib/models'
-import { runEdit, describeFailure, type EditTiming } from '@/lib/agent'
+import { runEdit, describeFailure, type EditTiming, type ConversationTurn } from '@/lib/agent'
 import type { BufferState, TimelineEntry } from '@/lib/timeline'
 import { instrument, dispatch, type RecordedCall } from '@/lib/recording'
 import type { AgentHandlers } from '@/lib/agent'
@@ -72,6 +72,7 @@ export function useLiveDocument() {
   const [buffer, setBuffer] = useState<BufferState | null>(null)
   const [replaying, setReplaying] = useState(false)
   const [recorded, setRecorded] = useState(false)
+  const conversation = useRef<ConversationTurn[]>([])
   const recording = useRef<{ calls: RecordedCall[]; handlers: AgentHandlers; snapshot: string } | null>(null)
   const replayTimers = useRef<number[]>([])
   const abortRef = useRef<AbortController | null>(null)
@@ -290,6 +291,7 @@ export function useLiveDocument() {
       // Held locally because handlers run before state settles.
       let firstEditMs: number | null = null
       let firstTiming: EditTiming | null = null
+      let turnHistory: ConversationTurn[] | null = null
 
       const handlers: AgentHandlers = {
         onEvent(entry) {
@@ -382,6 +384,7 @@ export function useLiveDocument() {
         },
 
         onDone(event) {
+          turnHistory = event.history
           for (const id of [...streams.current.keys()]) commitEdit(id, event.document)
           editor.commands.setContent(parse(event.document), { emitUpdate: false })
           setRuns((prior) => [
@@ -412,6 +415,7 @@ export function useLiveDocument() {
           eagerStreaming,
           document: snapshot,
           prompt: framed,
+          history: conversation.current,
           signal: controller.signal,
           handlers: instrument(
             handlers,
@@ -424,6 +428,7 @@ export function useLiveDocument() {
           setError(describeFailure(cause))
         }
       } finally {
+        if (turnHistory) conversation.current = turnHistory
         recording.current = { calls, handlers, snapshot }
         setRecorded(calls.length > 0)
         setRunning(false)
@@ -457,8 +462,19 @@ export function useLiveDocument() {
     highlight(null)
   }, [highlight])
 
+  /**
+   * Drops the conversation. Anything that replaces the document underneath the
+   * chat has to call this, or the next request explains an edit to a document
+   * that is no longer on screen.
+   */
+  const clearConversation = useCallback(() => {
+    conversation.current = []
+    setMessages([])
+  }, [])
+
   return {
     setEditor,
+    clearConversation,
     currentMarkdown,
     messages,
     edits,
