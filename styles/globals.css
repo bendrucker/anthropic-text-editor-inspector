@@ -65,12 +65,17 @@ body {
 
 /* Tables ------------------------------------------------------------------- */
 
+/* A table wide enough to need it scrolls inside its wrapper rather than
+   wrapping cell text mid-word, which would break `old_str` at a glance. */
+.ProseMirror .tableWrapper {
+  overflow-x: auto;
+}
+
 .ProseMirror table {
   border-collapse: collapse;
-  width: 100%;
+  min-width: 100%;
   font-family: ui-sans-serif, system-ui, sans-serif;
   font-size: 0.875rem;
-  table-layout: fixed;
 }
 
 .ProseMirror th,

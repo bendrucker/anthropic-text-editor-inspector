@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
+import * as Popover from '@radix-ui/react-popover'
 import { browserKeyStore, looksLikeAnthropicKey } from '@/lib/api-key'
 
 interface ApiKeyControlProps {
@@ -9,16 +10,6 @@ interface ApiKeyControlProps {
 export function ApiKeyControl({ apiKey, onApiKey }: ApiKeyControlProps) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState('')
-  const containerRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    const dismiss = (event: MouseEvent) => {
-      if (!containerRef.current?.contains(event.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', dismiss)
-    return () => document.removeEventListener('mousedown', dismiss)
-  }, [open])
 
   const save = () => {
     const key = draft.trim()
@@ -31,9 +22,8 @@ export function ApiKeyControl({ apiKey, onApiKey }: ApiKeyControlProps) {
   const malformed = draft.trim().length > 0 && !looksLikeAnthropicKey(draft)
 
   return (
-    <div ref={containerRef} className="relative">
-      <button
-        onClick={() => setOpen((prior) => !prior)}
+    <Popover.Root open={open} onOpenChange={setOpen}>
+      <Popover.Trigger
         className={`rounded-md border px-2.5 py-1 text-xs font-medium transition ${
           apiKey
             ? 'border-slate-200 text-slate-500 hover:bg-slate-50'
@@ -41,10 +31,14 @@ export function ApiKeyControl({ apiKey, onApiKey }: ApiKeyControlProps) {
         }`}
       >
         {apiKey ? `Key ${mask(apiKey)}` : 'Add API key'}
-      </button>
+      </Popover.Trigger>
 
-      {open && (
-        <div className="absolute right-0 top-full z-20 mt-2 w-80 rounded-lg border border-slate-200 bg-white p-3 shadow-lg">
+      <Popover.Portal>
+        <Popover.Content
+          align="end"
+          sideOffset={8}
+          className="z-30 w-80 rounded-lg border border-slate-200 bg-white p-3 shadow-lg"
+        >
           {apiKey ? (
             <div className="space-y-3">
               <p className="font-mono text-xs text-slate-500">{mask(apiKey)}</p>
@@ -84,9 +78,9 @@ export function ApiKeyControl({ apiKey, onApiKey }: ApiKeyControlProps) {
               </button>
             </div>
           )}
-        </div>
-      )}
-    </div>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   )
 }
 

@@ -14,12 +14,16 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",
+    "@radix-ui/react-popover": "^1.1.23",
+    "@radix-ui/react-select": "^2.3.7",
+    "@radix-ui/react-tabs": "^1.1.21",
     "@tailwindcss/typography": "^0.5.20",
     "@tiptap/extension-table": "^3.30.2",
     "@tiptap/markdown": "^3.30.2",
     "@tiptap/pm": "^3.30.2",
     "@tiptap/react": "^3.30.2",
     "@tiptap/starter-kit": "^3.30.2",
+    "lucide-react": "^1.33.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "streamdown": "^2.5.0"

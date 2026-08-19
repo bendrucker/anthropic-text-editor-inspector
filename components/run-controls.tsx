@@ -1,4 +1,5 @@
 import { MODELS, findModel, EFFORTS, findEffort, type EffortChoice } from '@/lib/models'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
 import type { EditTiming } from '@/lib/agent'
 import type { Run } from '@/hooks/use-live-document'
 
@@ -29,37 +30,33 @@ export function RunControls({
 
   return (
     <div className="flex items-center gap-2">
-      <select
-        value={model}
-        disabled={disabled}
-        onChange={(event) => onModel(event.target.value)}
-        title={choice?.note}
-        className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-300 focus:outline-none disabled:opacity-50"
-      >
-        {MODELS.map((option) => (
-          <option key={option.id} value={option.id}>
-            {option.label}
-          </option>
-        ))}
-      </select>
+      <Select value={model} onValueChange={onModel} disabled={disabled}>
+        <SelectTrigger>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {MODELS.map((option) => (
+            <SelectItem key={option.id} value={option.id} label={option.label} note={option.note} />
+          ))}
+        </SelectContent>
+      </Select>
 
-      <select
+      <Select
         value={effort}
+        onValueChange={(next) => onEffort(next as EffortChoice['id'])}
         disabled={disabled || !effortAvailable}
-        onChange={(event) => onEffort(event.target.value as EffortChoice['id'])}
-        title={
-          effortAvailable
-            ? findEffort(effort)?.note
-            : `${choice?.label ?? 'This model'} does not accept an effort setting`
-        }
-        className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-300 focus:outline-none disabled:opacity-50"
       >
-        {EFFORTS.map((option) => (
-          <option key={option.id} value={option.id}>
-            Effort: {option.label}
-          </option>
-        ))}
-      </select>
+        <SelectTrigger
+          title={effortAvailable ? undefined : `${choice?.label ?? 'This model'} does not accept an effort setting`}
+        >
+          Effort: <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {EFFORTS.map((option) => (
+            <SelectItem key={option.id} value={option.id} label={option.label} note={option.note} />
+          ))}
+        </SelectContent>
+      </Select>
 
       <button
         onClick={() => onFastMode(!fastMode)}
