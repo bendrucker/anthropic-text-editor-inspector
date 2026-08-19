@@ -1,0 +1,161 @@
+@import 'tailwindcss';
+@plugin '@tailwindcss/typography';
+
+:root {
+  --edit-target: oklch(0.94 0.03 250);
+  --edit-ambiguous: oklch(0.92 0.09 85);
+  --edit-writing: oklch(0.93 0.05 250);
+  --edit-settled: oklch(0.95 0.04 155);
+}
+
+body {
+  background: white;
+  color: oklch(0.28 0.02 260);
+}
+
+/* Document surface --------------------------------------------------------- */
+
+.ProseMirror {
+  font-family: ui-serif, 'Iowan Old Style', Georgia, serif;
+  font-size: 1.0625rem;
+  line-height: 1.75;
+  color: oklch(0.32 0.015 265);
+}
+
+.ProseMirror h1,
+.ProseMirror h2,
+.ProseMirror h3 {
+  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  letter-spacing: -0.015em;
+}
+
+.ProseMirror code,
+.ProseMirror pre {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.85em;
+}
+
+/* Tailwind Typography wraps inline code in literal backticks. */
+.ProseMirror code::before,
+.ProseMirror code::after {
+  content: none;
+}
+
+.ProseMirror :not(pre) > code {
+  background: oklch(0.96 0.008 265);
+  border: 1px solid oklch(0.92 0.008 265);
+  border-radius: 0.3rem;
+  padding: 0.1em 0.35em;
+  font-weight: 500;
+}
+
+.ProseMirror pre {
+  background: oklch(0.97 0.005 265);
+  border: 1px solid oklch(0.92 0.008 265);
+  border-radius: 0.5rem;
+  padding: 0.9rem 1.1rem;
+  overflow-x: auto;
+}
+
+.ProseMirror blockquote {
+  border-left: 3px solid oklch(0.88 0.01 265);
+  font-style: normal;
+  color: oklch(0.5 0.015 265);
+}
+
+/* Tables ------------------------------------------------------------------- */
+
+.ProseMirror table {
+  border-collapse: collapse;
+  width: 100%;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.875rem;
+  table-layout: fixed;
+}
+
+.ProseMirror th,
+.ProseMirror td {
+  border: 1px solid oklch(0.91 0.008 265);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.ProseMirror th {
+  background: oklch(0.975 0.005 265);
+  font-weight: 600;
+}
+
+.ProseMirror th p,
+.ProseMirror td p {
+  margin: 0;
+}
+
+.ProseMirror .selectedCell::after {
+  background: oklch(0.9 0.04 250 / 0.4);
+  content: '';
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+  z-index: 2;
+}
+
+/* Streaming edit highlight -------------------------------------------------- */
+
+.agent-edit {
+  border-radius: 2px;
+  transition: background-color 600ms ease;
+}
+
+.agent-edit-target {
+  background-color: var(--edit-target);
+}
+
+.agent-edit-ambiguous {
+  background-color: var(--edit-ambiguous);
+  box-shadow: 0 0 0 1px oklch(0.82 0.13 85);
+}
+
+.agent-edit-writing {
+  background-color: var(--edit-writing);
+  box-shadow: 0 0 0 2px var(--edit-writing);
+}
+
+/* A caret trailing the text as it is written. */
+.agent-edit-writing::after {
+  content: '';
+  display: inline-block;
+  width: 2px;
+  height: 1.05em;
+  margin-left: 1px;
+  vertical-align: text-bottom;
+  background: oklch(0.55 0.18 255);
+  animation: caret 1s steps(2, start) infinite;
+}
+
+.agent-edit-settled {
+  background-color: var(--edit-settled);
+  animation: settle 2.4s ease forwards;
+}
+
+@keyframes caret {
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes settle {
+  0% {
+    background-color: var(--edit-settled);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-edit-writing::after,
+  .agent-edit-settled {
+    animation: none;
+  }
+}
