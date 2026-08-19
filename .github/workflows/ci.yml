@@ -27,6 +27,9 @@ jobs:
       - name: Markdown roundtrip
         run: bun run roundtrip
 
+      - name: Conversation history
+        run: bun run conversation
+
       - name: Build
         run: bun run build
 

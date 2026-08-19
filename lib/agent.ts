@@ -78,6 +78,9 @@ export function buildTool(options: { oldStrFirst: boolean; eager: boolean }): An
  * `targetMs` is `old_str` streaming, which is bounded by how much context the
  * model needed to make the match unique.
  */
+/** One turn of the conversation, as the API sees it. */
+export type ConversationTurn = Anthropic.Beta.BetaMessageParam
+
 export interface EditTiming {
   firstByteMs: number
   toolStartMs: number
@@ -104,7 +107,14 @@ export interface AgentHandlers {
     /** Every place `old_str` did match, so an ambiguous edit can be shown in place. */
     matches: Match[]
   }) => void
-  onDone: (event: { document: string; model: string; fastMode: boolean; effort: EffortChoice['id'] }) => void
+  onDone: (event: {
+    document: string
+    model: string
+    fastMode: boolean
+    effort: EffortChoice['id']
+    /** The conversation including this run, to carry into the next request. */
+    history: ConversationTurn[]
+  }) => void
   /** Every wire event, for the inspector. App decisions are recorded by the caller. */
   onEvent: (entry: Omit<TimelineEntry, 'source'> & { source?: 'wire' }) => void
   /** The accumulated tool-input buffer and what the scanner currently reads from it. */
@@ -124,6 +134,8 @@ export interface RunOptions {
   eagerStreaming?: boolean
   document: string
   prompt: string
+  /** Earlier turns. Without them the model cannot answer a follow-up or its own question. */
+  history?: readonly ConversationTurn[]
   signal?: AbortSignal
   handlers: AgentHandlers
 }
@@ -170,7 +182,7 @@ export async function runEdit(options: RunOptions): Promise<void> {
   let firstEditAt: number | null = null
   let workingDocument = document
 
-  const history: Anthropic.Beta.BetaMessageParam[] = [{ role: 'user', content: prompt }]
+  const history: ConversationTurn[] = [...(options.history ?? []), { role: 'user', content: prompt }]
   let turnNumber = 0
 
   for (;;) {
@@ -309,6 +321,7 @@ export async function runEdit(options: RunOptions): Promise<void> {
         model: model.id,
         fastMode,
         effort: model.supportsEffort ? effort : 'auto',
+        history: [...history],
       })
       return
     }
