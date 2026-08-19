@@ -5,7 +5,7 @@
  * question, which looks like working chat right up until a user replies to one.
  * Stubs fetch so this runs with no API key and no network.
  */
-import { runEdit, type ConversationTurn } from '@/lib/agent'
+import { runEdit, stripDanglingToolUse, type ConversationTurn } from '@/lib/agent'
 import type { AgentHandlers } from '@/lib/agent'
 
 const requests: { messages: { role: string; content: unknown }[] }[] = []
@@ -57,6 +57,43 @@ const checks: [string, boolean][] = [
   ],
   ['the reply is the last turn', second.messages.at(-1)?.content === 'the pipeline one'],
 ]
+
+// A turn that stopped for any reason other than tool_use can still carry a
+// tool call. Persisted, it makes every later request fail as malformed.
+const answered: ConversationTurn[] = [
+  { role: 'assistant', content: [{ type: 'tool_use', id: 'a', name: 'str_replace', input: {} }] },
+  { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'a', content: 'ok' }] },
+]
+
+const dangling: ConversationTurn[] = [
+  { role: 'user', content: 'edit it' },
+  {
+    role: 'assistant',
+    content: [
+      { type: 'text', text: 'Working on it' },
+      { type: 'tool_use', id: 'b', name: 'str_replace', input: {} },
+    ],
+  },
+]
+
+const onlyDangling: ConversationTurn[] = [
+  { role: 'user', content: 'edit it' },
+  { role: 'assistant', content: [{ type: 'tool_use', id: 'c', name: 'str_replace', input: {} }] },
+]
+
+const stripped = stripDanglingToolUse(dangling)
+const assistant = stripped[1]
+const assistantBlocks = typeof assistant?.content === 'string' ? [] : (assistant?.content ?? [])
+
+checks.push(
+  ['an answered tool call survives', stripDanglingToolUse(answered).length === 2],
+  ['an unanswered tool call is dropped', !assistantBlocks.some((b) => b.type === 'tool_use')],
+  ['the text beside it is kept', assistantBlocks.some((b) => b.type === 'text')],
+  [
+    'an assistant turn left empty is dropped whole',
+    stripDanglingToolUse(onlyDangling).length === 1,
+  ],
+)
 
 for (const [label, ok] of checks) console.log(`${ok ? 'ok  ' : 'FAIL'}  ${label}`)
 
