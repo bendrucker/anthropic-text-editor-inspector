@@ -1,9 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { Streamdown } from 'streamdown'
 import type { ChatMessage, EditRecord, Run } from '@/hooks/use-live-document'
+import type { Trap } from '@/lib/traps'
 import { RunHistory } from './run-controls'
 
 interface ChatPaneProps {
+  /** Edits that read naturally against the open document. */
+  prompts: string[]
+  traps: Trap[]
   messages: ChatMessage[]
   edits: EditRecord[]
   runs: Run[]
@@ -15,24 +19,19 @@ interface ChatPaneProps {
   onRevert: (edit: EditRecord) => void
 }
 
-const ORDINARY = [
-  'Tighten the executive summary. Less hedging.',
-  'The EMEA paragraph buries the slipped deal. Lead with it.',
-]
-
-/**
- * Prompts the document is rigged to make hard. Each one names something that
- * appears more than once, so the first `old_str` the model tries is ambiguous
- * and the tool has to reject it. Most instructive with prompt rules off, where
- * the model has not been told the uniqueness constraint up front.
- */
-const TRAPS = [
-  { prompt: 'Rename every Commit stage reference to Committed.', why: '"Commit" appears 4 times' },
-  { prompt: 'The 22% close rate should read 24%.', why: '"22%" appears twice, table and prose' },
-  { prompt: 'Correct the $1.9M figure.', why: '"$1.9M" names two different things' },
-]
-
-export function ChatPane({ messages, edits, runs, running, hasKey, error, onSend, onStop, onRevert }: ChatPaneProps) {
+export function ChatPane({
+  prompts,
+  traps,
+  messages,
+  edits,
+  runs,
+  running,
+  hasKey,
+  error,
+  onSend,
+  onStop,
+  onRevert,
+}: ChatPaneProps) {
   const [draft, setDraft] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -56,7 +55,7 @@ export function ChatPane({ messages, edits, runs, running, hasKey, error, onSend
             </p>
 
             <div className="space-y-2">
-              {ORDINARY.map((suggestion) => (
+              {prompts.map((suggestion) => (
                 <button
                   key={suggestion}
                   onClick={() => onSend(suggestion)}
@@ -68,28 +67,31 @@ export function ChatPane({ messages, edits, runs, running, hasKey, error, onSend
               ))}
             </div>
 
-            <div className="space-y-2">
-              <p className="text-[11px] font-medium tracking-wide text-amber-700 uppercase">
-                Ambiguity traps
-              </p>
-              <p className="text-xs leading-relaxed text-slate-500">
-                Each of these names something that appears more than once, so the first{' '}
-                <span className="font-mono">old_str</span> the model reaches for is ambiguous and gets
-                rejected. Turn off prompt rules first to watch it learn the constraint from the tool
-                result.
-              </p>
-              {TRAPS.map((trap) => (
-                <button
-                  key={trap.prompt}
-                  onClick={() => onSend(trap.prompt)}
-                  disabled={!hasKey}
-                  className="block w-full rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 text-left text-sm text-slate-700 transition hover:border-amber-300 disabled:opacity-40 disabled:hover:border-amber-200"
-                >
-                  {trap.prompt}
-                  <span className="mt-0.5 block text-[11px] text-amber-700">{trap.why}</span>
-                </button>
-              ))}
-            </div>
+            {traps.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-[11px] font-medium tracking-wide text-amber-700 uppercase">
+                  Ambiguity traps
+                </p>
+                <p className="text-xs leading-relaxed text-slate-500">
+                  Found by scanning this document for repeated strings, then checked against the
+                  matcher. Each names something appearing more than once, so the first{' '}
+                  <span className="font-mono">old_str</span> the model tries is ambiguous and gets
+                  rejected. Turn off prompt rules first to watch it learn the constraint from the
+                  tool result.
+                </p>
+                {traps.map((trap) => (
+                  <button
+                    key={trap.needle}
+                    onClick={() => onSend(trap.prompt)}
+                    disabled={!hasKey}
+                    className="block w-full rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 text-left text-sm text-slate-700 transition hover:border-amber-300 disabled:opacity-40 disabled:hover:border-amber-200"
+                  >
+                    {trap.prompt}
+                    <span className="mt-0.5 block text-[11px] text-amber-700">{trap.why}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

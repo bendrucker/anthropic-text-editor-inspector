@@ -1,35 +1,32 @@
 import { useMemo, useState } from 'react'
 import { locateEdit } from '@/lib/str-replace'
 import type { Match } from '@/lib/str-replace'
+import type { Probe } from '@/lib/traps'
 
 interface MatchSandboxProps {
   /** The document as the matcher sees it: canonical serializer output. */
   canonical: () => string
+  /** Presets derived from the open document, each reaching a different rejection. */
+  probes: Probe[]
   onShowMatches: (matches: Match[]) => void
 }
-
-const PROBES = [
-  { label: 'Ambiguous', oldStr: 'Commit', note: 'Appears four times. Rejected as ambiguous.' },
-  {
-    label: 'Unpadded row',
-    oldStr: '| Enterprise | 47 | $58.2M | $19.4M | 22% |',
-    note: 'The real row, with the column padding collapsed. Rejected for whitespace.',
-  },
-  {
-    label: 'Absent',
-    oldStr: 'Pipeline coverage finished the year',
-    note: 'Plausible sentence that is not in the document.',
-  },
-]
 
 /**
  * The matcher without the model. Every rejection the tool can produce is
  * reachable here deterministically, for free, with no API key.
  */
-export function MatchSandbox({ canonical, onShowMatches }: MatchSandboxProps) {
+export function MatchSandbox({ canonical, probes, onShowMatches }: MatchSandboxProps) {
   const [oldStr, setOldStr] = useState('')
   const [replaceAll, setReplaceAll] = useState(false)
   const [probed, setProbed] = useState(0)
+
+  // Probes are rederived per document, so a new array means a different document
+  // is open and any pending old_str quotes text nobody can see any more.
+  const [priorProbes, setPriorProbes] = useState(probes)
+  if (probes !== priorProbes) {
+    setPriorProbes(probes)
+    setOldStr('')
+  }
 
   const outcome = useMemo(() => {
     if (!oldStr) return null
@@ -49,7 +46,7 @@ export function MatchSandbox({ canonical, onShowMatches }: MatchSandboxProps) {
       </div>
 
       <div className="flex flex-wrap gap-1">
-        {PROBES.map((probe) => (
+        {probes.map((probe) => (
           <button
             key={probe.label}
             onClick={() => {

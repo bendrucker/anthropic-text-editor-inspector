@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import type { BufferState, TimelineEntry } from '@/lib/timeline'
 import type { Match } from '@/lib/str-replace'
+import type { Probe } from '@/lib/traps'
 import { MatchSandbox } from './match-sandbox'
 
 interface RunInspectorProps {
   timeline: TimelineEntry[]
   buffer: BufferState | null
   canonical: () => string
+  probes: Probe[]
   onShowMatches: (matches: Match[]) => void
   onReplay: (speed?: number) => void
   replaying: boolean
@@ -23,6 +25,7 @@ export function RunInspector({
   timeline,
   buffer,
   canonical,
+  probes,
   onShowMatches,
   onReplay,
   replaying,
@@ -102,7 +105,7 @@ export function RunInspector({
             {panel === 'buffer' ? (
               <BufferPanel buffer={buffer} />
             ) : (
-              <MatchSandbox canonical={canonical} onShowMatches={onShowMatches} />
+              <MatchSandbox canonical={canonical} probes={probes} onShowMatches={onShowMatches} />
             )}
           </div>
         </div>

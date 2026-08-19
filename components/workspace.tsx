@@ -6,8 +6,9 @@ import { RunControls } from './run-controls'
 import { RunInspector } from './run-inspector'
 import { ToolSetup } from './tool-setup'
 import { ApiKeyControl } from './api-key-control'
+import { DocumentPicker } from './document-picker'
 
-export function Workspace({ initialMarkdown }: { initialMarkdown: string }) {
+export function Workspace() {
   const doc = useLiveDocument()
   const { send } = doc
 
@@ -19,9 +20,15 @@ export function Workspace({ initialMarkdown }: { initialMarkdown: string }) {
   return (
     <div className="flex h-screen flex-col bg-white">
       <header className="flex items-center justify-between border-b border-slate-200 px-6 py-3">
-        <div className="flex items-baseline gap-3">
-          <h1 className="text-sm font-semibold text-slate-900">Q3 FY26 Pipeline Review</h1>
-          <span className="text-xs text-slate-400">Markdown · live edit</span>
+        <div className="flex min-w-0 items-center gap-3">
+          <DocumentPicker
+            document={doc.document}
+            generated={doc.generated}
+            onSelect={doc.selectDocument}
+            onGenerate={doc.generate}
+            disabled={doc.running}
+          />
+          <span className="truncate text-xs text-slate-400">{doc.document.description}</span>
         </div>
 
         <div className="flex items-center gap-4">
@@ -58,12 +65,14 @@ export function Workspace({ initialMarkdown }: { initialMarkdown: string }) {
 
       <div className="grid min-h-0 flex-1 grid-cols-[1fr_380px] overflow-hidden">
         <DocumentPane
-          initialMarkdown={initialMarkdown}
+          initialMarkdown={doc.document.markdown}
           locked={doc.running}
           onEditor={doc.setEditor}
           onAskAboutSelection={askAboutSelection}
         />
         <ChatPane
+          prompts={doc.document.prompts}
+          traps={doc.traps}
           messages={doc.messages}
           edits={doc.edits}
           runs={doc.runs}
@@ -80,6 +89,7 @@ export function Workspace({ initialMarkdown }: { initialMarkdown: string }) {
         timeline={doc.timeline}
         buffer={doc.buffer}
         canonical={doc.currentMarkdown}
+        probes={doc.probes}
         onShowMatches={doc.showMatches}
         onReplay={doc.replay}
         replaying={doc.replaying}
