@@ -245,9 +245,13 @@ export function ToolSetup(props: ToolSetupProps) {
                 disabled={props.disabled || inert}
                 className={`rounded-md border px-2 py-0.5 text-[11px] font-medium whitespace-nowrap transition disabled:cursor-not-allowed ${
                   inert
-                    ? 'border-dashed border-slate-200 bg-transparent text-slate-300 line-through'
+                    ? // Keeps the faint edge the live switch just gave up. 1.4.11
+                      // excepts an inactive component, and a switch the built-in
+                      // tool has taken away is meant to recede: dashed, struck
+                      // through, and too pale to invite a click.
+                      'border-dashed border-slate-200 bg-transparent text-slate-300 line-through'
                     : on
-                      ? 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 disabled:opacity-40'
+                      ? 'border-control bg-white text-slate-600 hover:border-control-strong disabled:opacity-40'
                       : 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 disabled:opacity-40'
                 }`}
               >

@@ -93,7 +93,7 @@ export function ChatPane({
                   key={suggestion}
                   onClick={() => onSend(suggestion)}
                   disabled={!hasKey}
-                  className="block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-sm text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:opacity-40 disabled:hover:border-slate-200"
+                  className="block w-full rounded-lg border border-control bg-white px-3 py-2 text-left text-sm text-slate-600 transition hover:border-control-strong hover:text-slate-900 disabled:opacity-40 disabled:hover:border-control"
                 >
                   {suggestion}
                 </button>
@@ -182,12 +182,12 @@ export function ChatPane({
             rows={2}
             disabled={!hasKey}
             placeholder={hasKey ? 'Ask for an edit…' : 'Add your API key to start'}
-            className="flex-1 resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-500 focus:border-slate-400 focus-ring"
+            className="flex-1 resize-none rounded-lg border border-control px-3 py-2 text-sm text-slate-800 placeholder:text-slate-500 focus:border-control-strong focus-ring"
           />
           {running ? (
             <button
               onClick={onStop}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100"
+              className="rounded-lg border border-control px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100"
             >
               Stop
             </button>

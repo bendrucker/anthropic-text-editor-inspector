@@ -171,7 +171,7 @@ export function EventConsole({ timeline }: EventConsoleProps) {
 
         <Popover>
           <PopoverTrigger asChild>
-            <button className="flex items-center gap-1 rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-slate-600 transition hover:border-slate-300">
+            <button className="flex items-center gap-1 rounded border border-control bg-white px-1.5 py-0.5 text-[10px] font-medium text-slate-600 transition hover:border-control-strong">
               {mutedNames.size > 0 ? `${mutedNames.size} type${mutedNames.size === 1 ? '' : 's'} hidden` : 'Types'}
               <ChevronDown className="size-3 text-slate-500" />
             </button>
@@ -239,7 +239,7 @@ export function EventConsole({ timeline }: EventConsoleProps) {
               <PopoverTrigger asChild>
                 <button
                   aria-label="Console settings"
-                  className="rounded border border-transparent p-0.5 text-slate-500 transition hover:border-slate-200 hover:bg-white hover:text-slate-700"
+                  className="rounded border border-transparent p-0.5 text-slate-500 transition hover:border-control-strong hover:bg-white hover:text-slate-700"
                 >
                   <Settings2 className="size-3.5" />
                 </button>
@@ -331,7 +331,7 @@ export function EventConsole({ timeline }: EventConsoleProps) {
       {!following && sections.length > 0 && (
         <button
           onClick={() => setFollowing(true)}
-          className="absolute bottom-2 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full border border-slate-300 bg-white/95 px-2.5 py-1 text-[10px] font-medium text-slate-600 shadow-sm transition hover:border-slate-400"
+          className="absolute bottom-2 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full border border-control bg-white/95 px-2.5 py-1 text-[10px] font-medium text-slate-600 shadow-sm transition hover:border-control-strong"
         >
           <ArrowDown className="size-3" />
           Follow the tail
@@ -846,7 +846,7 @@ function formatGap(ms: number): string {
 
 function FilterBox({ value, onChange }: { value: string; onChange: (next: string) => void }) {
   return (
-    <label className="flex w-48 shrink-0 items-center gap-1 rounded border border-slate-200 bg-white px-1.5 py-0.5 focus-within:border-slate-400">
+    <label className="flex w-48 shrink-0 items-center gap-1 rounded border border-control bg-white px-1.5 py-0.5 focus-within:border-control-strong">
       <Search className="size-3 shrink-0 text-slate-500" />
       <input
         value={value}
@@ -873,7 +873,7 @@ function FilterBox({ value, onChange }: { value: string; onChange: (next: string
 
 const CHIP_TONES = {
   wire: 'border-blue-200 bg-blue-50 text-blue-600',
-  plain: 'border-slate-300 bg-white text-slate-600',
+  plain: 'border-control bg-white text-slate-600',
   problem: 'border-amber-300 bg-amber-50 text-amber-700',
 }
 

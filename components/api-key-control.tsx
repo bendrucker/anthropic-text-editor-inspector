@@ -21,7 +21,7 @@ function EnvironmentKeyBadge() {
     <Tooltip content={`${keyStore.description} ${keyStore.change}`}>
       <span
         tabIndex={0}
-        className="focus-ring whitespace-nowrap rounded-md border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-500"
+        className="focus-ring whitespace-nowrap rounded-md border border-control px-2.5 py-1 text-xs font-medium text-slate-500"
       >
         Key from dev server
       </span>
@@ -48,7 +48,7 @@ function KeyPopover({ apiKey, onApiKey }: ApiKeyControlProps) {
       <Popover.Trigger
         className={`whitespace-nowrap rounded-md border px-2.5 py-1 text-xs font-medium transition ${
           apiKey
-            ? 'border-slate-200 text-slate-500 hover:bg-slate-50'
+            ? 'border-control text-slate-500 hover:bg-slate-50'
             : 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100'
         }`}
       >
@@ -70,7 +70,7 @@ function KeyPopover({ apiKey, onApiKey }: ApiKeyControlProps) {
                   onApiKey(null)
                   setOpen(false)
                 }}
-                className="w-full rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+                className="w-full rounded-md border border-control px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
               >
                 Remove key
               </button>
@@ -84,7 +84,7 @@ function KeyPopover({ apiKey, onApiKey }: ApiKeyControlProps) {
                 onChange={(event) => setDraft(event.target.value)}
                 onKeyDown={(event) => event.key === 'Enter' && save()}
                 placeholder="sk-ant-…"
-                className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 font-mono text-xs text-slate-800 placeholder:text-slate-500 focus:border-slate-400 focus-ring"
+                className="w-full rounded-md border border-control px-2.5 py-1.5 font-mono text-xs text-slate-800 placeholder:text-slate-500 focus:border-control-strong focus-ring"
               />
               <p className={`text-xs leading-relaxed ${malformed ? 'text-amber-700' : 'text-slate-500'}`}>
                 {malformed

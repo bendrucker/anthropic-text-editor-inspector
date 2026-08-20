@@ -13,7 +13,7 @@ export const SelectValue = Primitive.Value
 export function SelectTrigger({ className, children, ...props }: React.ComponentProps<typeof Primitive.Trigger>) {
   return (
     <Primitive.Trigger
-      className={`flex items-center gap-1 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-300 focus-ring disabled:cursor-not-allowed disabled:opacity-50 ${className ?? ''}`}
+      className={`flex items-center gap-1 whitespace-nowrap rounded-lg border border-control bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:border-control-strong focus-ring disabled:cursor-not-allowed disabled:opacity-50 ${className ?? ''}`}
       {...props}
     >
       {children}
