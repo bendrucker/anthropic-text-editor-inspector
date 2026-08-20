@@ -89,7 +89,7 @@ export function ToolSetup(props: ToolSetupProps) {
         onValueChange={(next) => props.onEditorTool(next as EditorTool)}
         disabled={props.disabled}
       >
-        <SelectTrigger className="py-0.5">
+        <SelectTrigger aria-label="Editor tool" className="py-0.5">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

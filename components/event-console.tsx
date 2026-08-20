@@ -170,6 +170,7 @@ export function EventConsole({ timeline }: EventConsoleProps) {
             <PopoverTrigger asChild>
               <button
                 title="Console settings"
+                aria-label="Console settings"
                 className="rounded border border-transparent p-0.5 text-slate-400 transition hover:border-slate-200 hover:bg-white hover:text-slate-600"
               >
                 <Settings2 className="size-3.5" />
@@ -191,67 +192,72 @@ export function EventConsole({ timeline }: EventConsoleProps) {
         </span>
       </div>
 
-      <ColumnHeader gaps={showGaps} />
+      {/* The header stays put by living outside the scroller, which leaves the
+          columns and the rows in separate elements. The table role has to wrap
+          both for a cell to find its header. */}
+      <div role="table" aria-label="Run events" className="flex min-h-0 flex-1 flex-col">
+        <ColumnHeader gaps={showGaps} />
 
-      <div
-        ref={scrollRef}
-        onScroll={(event) => {
-          const view = event.currentTarget
-          setFollowing(view.scrollHeight - view.scrollTop - view.clientHeight < 24)
-        }}
-        className="min-h-0 flex-1 overflow-y-auto px-3 py-1"
-      >
-        {timeline.length === 0 ? (
-          <p className="py-6 text-center text-xs text-slate-400">
-            Ask for an edit. Every event that crosses the wire lands here.
-          </p>
-        ) : rows.length === 0 ? (
-          <p className="py-6 text-center text-xs text-slate-400">
-            No event matches.{' '}
-            <button onClick={clearFilters} className="underline underline-offset-2">
-              Clear the filters
-            </button>
-          </p>
-        ) : (
-          <ol>
-            {rows.map((row) =>
-              row.kind === 'group' ? (
-                <Fragment key={row.id}>
-                  <GroupRow
-                    row={row}
+        <div
+          ref={scrollRef}
+          onScroll={(event) => {
+            const view = event.currentTarget
+            setFollowing(view.scrollHeight - view.scrollTop - view.clientHeight < 24)
+          }}
+          className="min-h-0 flex-1 overflow-y-auto px-3 py-1"
+        >
+          {timeline.length === 0 ? (
+            <p className="py-6 text-center text-xs text-slate-400">
+              Ask for an edit. Every event that crosses the wire lands here.
+            </p>
+          ) : rows.length === 0 ? (
+            <p className="py-6 text-center text-xs text-slate-400">
+              No event matches.{' '}
+              <button onClick={clearFilters} className="underline underline-offset-2">
+                Clear the filters
+              </button>
+            </p>
+          ) : (
+            <div role="rowgroup">
+              {rows.map((row) =>
+                row.kind === 'group' ? (
+                  <Fragment key={row.id}>
+                    <GroupRow
+                      row={row}
+                      gaps={showGaps}
+                      query={query}
+                      open={expanded.has(row.id)}
+                      onOpen={() => toggle(row.id)}
+                    />
+                    {expanded.has(row.id) &&
+                      row.entries.map((entry) => (
+                        <EventRow
+                          key={entry.id}
+                          entry={entry}
+                          stamp={row.stamps.get(entry.id)}
+                          gaps={showGaps}
+                          query={query}
+                          nested
+                          expanded={expanded.has(entry.id)}
+                          onToggle={() => toggle(entry.id)}
+                        />
+                      ))}
+                  </Fragment>
+                ) : (
+                  <EventRow
+                    key={row.entry.id}
+                    entry={row.entry}
+                    stamp={row.stamp}
                     gaps={showGaps}
                     query={query}
-                    open={expanded.has(row.id)}
-                    onOpen={() => toggle(row.id)}
+                    expanded={expanded.has(row.entry.id)}
+                    onToggle={() => toggle(row.entry.id)}
                   />
-                  {expanded.has(row.id) &&
-                    row.entries.map((entry) => (
-                      <EventRow
-                        key={entry.id}
-                        entry={entry}
-                        stamp={row.stamps.get(entry.id)}
-                        gaps={showGaps}
-                        query={query}
-                        nested
-                        expanded={expanded.has(entry.id)}
-                        onToggle={() => toggle(entry.id)}
-                      />
-                    ))}
-                </Fragment>
-              ) : (
-                <EventRow
-                  key={row.entry.id}
-                  entry={row.entry}
-                  stamp={row.stamp}
-                  gaps={showGaps}
-                  query={query}
-                  expanded={expanded.has(row.entry.id)}
-                  onToggle={() => toggle(row.entry.id)}
-                />
-              ),
-            )}
-          </ol>
-        )}
+                ),
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {!following && rows.length > 0 && (
@@ -275,12 +281,17 @@ const NEST = 'ml-[7.75rem]'
 function ColumnHeader({ gaps }: { gaps: boolean }) {
   return (
     <div
+      role="row"
       className={`${COLUMNS} shrink-0 border-y border-slate-200 px-3 py-1 text-[9px] font-medium tracking-wide text-slate-400 uppercase`}
     >
-      <span className="text-right">{gaps ? 'Gap' : 'Time'}</span>
-      <span>Src</span>
-      <span className="pl-4">Event</span>
-      <span>Detail</span>
+      <span role="columnheader" className="text-right">
+        {gaps ? 'Gap' : 'Time'}
+      </span>
+      <span role="columnheader">Src</span>
+      <span role="columnheader" className="pl-4">
+        Event
+      </span>
+      <span role="columnheader">Detail</span>
     </div>
   )
 }
@@ -315,43 +326,48 @@ function EventRow({
 }) {
   const { name, qualifier } = splitLabel(entry.label)
   const openable = entry.detail !== undefined || entry.raw !== undefined
+  const label = (
+    <span className={`truncate font-mono ${TONES[entry.tone ?? 'normal']}`} title={name}>
+      <Highlight text={name} query={query} />
+    </span>
+  )
 
   return (
-    <li
+    <div
       className={`border-b border-slate-100 text-[11px] leading-relaxed last:border-b-0 ${
         entry.tone === 'bad' ? 'bg-amber-50/60' : nested ? 'bg-slate-100/50' : ''
       }`}
     >
       <div
-        role={openable ? 'button' : undefined}
-        tabIndex={openable ? 0 : undefined}
-        aria-expanded={openable ? expanded : undefined}
+        role="row"
+        id={rowId(entry.id)}
         onClick={openable ? onToggle : undefined}
-        onKeyDown={(event) => {
-          if (!openable) return
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault()
-            onToggle()
-          }
-        }}
         className={`${COLUMNS} py-0.5 ${openable ? 'cursor-pointer hover:bg-slate-100/70' : ''}`}
       >
         <Clock at={stamp} gaps={gaps} />
         <span
+          role="cell"
           className={`font-medium ${entry.source === 'wire' ? 'text-blue-500' : 'text-slate-400'}`}
           title={SOURCE_TITLE[entry.source]}
         >
           {entry.source}
         </span>
 
-        <span className="flex min-w-0 items-baseline gap-1">
-          <Twisty open={expanded} shown={openable} nested={nested} />
-          <span className={`truncate font-mono ${TONES[entry.tone ?? 'normal']}`} title={name}>
-            <Highlight text={name} query={query} />
-          </span>
+        <span role="cell" className="flex min-w-0 items-baseline gap-1">
+          {openable ? (
+            <Disclosure open={expanded} controls={detailId(entry.id)} onToggle={onToggle}>
+              <Twisty open={expanded} shown nested={nested} />
+              {label}
+            </Disclosure>
+          ) : (
+            <>
+              <Twisty shown={false} nested={nested} />
+              {label}
+            </>
+          )}
         </span>
 
-        <span className="flex min-w-0 items-baseline gap-2 truncate">
+        <span role="cell" className="flex min-w-0 items-baseline gap-2 truncate">
           {qualifier && (
             <span className="shrink-0 font-mono text-slate-500">
               <Highlight text={qualifier} query={query} />
@@ -371,25 +387,67 @@ function EventRow({
       </div>
 
       {expanded && (
-        <div className={`${NEST} mb-1 space-y-1.5 border-l-2 border-slate-200 pl-3`}>
-          {entry.raw !== undefined && (
-            <div>
-              <p className="text-[10px] font-medium text-slate-500">
-                Raw fragment · {entry.raw.length} chars
+        <div role="row">
+          <div
+            role="cell"
+            aria-colspan={4}
+            id={detailId(entry.id)}
+            className={`${NEST} mb-1 space-y-1.5 border-l-2 border-slate-200 pl-3`}
+          >
+            {entry.raw !== undefined && (
+              <div>
+                <p className="text-[10px] font-medium text-slate-500">
+                  Raw fragment · {entry.raw.length} chars
+                </p>
+                <pre className="mt-0.5 rounded border border-slate-200 bg-white px-2 py-1 font-mono text-[10px] leading-relaxed break-all whitespace-pre-wrap text-slate-600">
+                  {JSON.stringify(entry.raw)}
+                </pre>
+              </div>
+            )}
+            {entry.detail && (
+              <p className="text-[10px] leading-relaxed text-slate-500">
+                <Highlight text={entry.detail} query={query} />
               </p>
-              <pre className="mt-0.5 rounded border border-slate-200 bg-white px-2 py-1 font-mono text-[10px] leading-relaxed break-all whitespace-pre-wrap text-slate-600">
-                {JSON.stringify(entry.raw)}
-              </pre>
-            </div>
-          )}
-          {entry.detail && (
-            <p className="text-[10px] leading-relaxed text-slate-500">
-              <Highlight text={entry.detail} query={query} />
-            </p>
-          )}
+            )}
+          </div>
         </div>
       )}
-    </li>
+    </div>
+  )
+}
+
+const rowId = (id: string) => `event-${id}`
+const detailId = (id: string) => `event-${id}-detail`
+
+/**
+ * A row is not a control, so the event name carries the disclosure instead. The
+ * whole row stays clickable for a pointer, which is why the button has to stop
+ * the click it already handled from reaching the row underneath.
+ */
+function Disclosure({
+  open,
+  controls,
+  onToggle,
+  children,
+}: {
+  open: boolean
+  controls: string
+  onToggle: () => void
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      aria-expanded={open}
+      aria-controls={open ? controls : undefined}
+      onClick={(event) => {
+        event.stopPropagation()
+        onToggle()
+      }}
+      className="flex min-w-0 cursor-pointer items-baseline gap-1 text-left"
+    >
+      {children}
+    </button>
   )
 }
 
@@ -413,39 +471,40 @@ function GroupRow({
     : undefined
 
   return (
-    <li className="border-b border-slate-100 text-[11px] leading-relaxed last:border-b-0">
+    <div className="border-b border-slate-100 text-[11px] leading-relaxed last:border-b-0">
       <div
-        role="button"
-        tabIndex={0}
-        aria-expanded={Boolean(open)}
+        role="row"
         onClick={onOpen}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault()
-            onOpen()
-          }
-        }}
         className={`${COLUMNS} cursor-pointer py-0.5 hover:bg-slate-100/70`}
       >
         <Clock at={row.stamp} gaps={gaps} />
         <span
+          role="cell"
           className={`font-medium ${row.source === 'wire' ? 'text-blue-500' : 'text-slate-400'}`}
           title={SOURCE_TITLE[row.source]}
         >
           {row.source}
         </span>
 
-        <span className="flex min-w-0 items-baseline gap-1">
-          <Twisty open={open} shown />
-          <span className="truncate font-mono text-slate-700">
-            <Highlight text={row.name} query={query} />
-          </span>
-          <span className="shrink-0 rounded bg-slate-200 px-1 text-[10px] font-medium text-slate-600 tabular-nums">
-            ×{row.entries.length}
-          </span>
+        <span role="cell" className="flex min-w-0 items-baseline gap-1">
+          {/* Folding hides rows rather than a panel, so the disclosure points at
+              the rows it reveals instead of at one detail cell. */}
+          <Disclosure
+            open={Boolean(open)}
+            controls={row.entries.map((entry) => rowId(entry.id)).join(' ')}
+            onToggle={onOpen}
+          >
+            <Twisty open={open} shown />
+            <span className="truncate font-mono text-slate-700">
+              <Highlight text={row.name} query={query} />
+            </span>
+            <span className="shrink-0 rounded bg-slate-200 px-1 text-[10px] font-medium text-slate-600 tabular-nums">
+              ×{row.entries.length}
+            </span>
+          </Disclosure>
         </span>
 
-        <span className="flex min-w-0 items-baseline gap-2 truncate text-slate-400">
+        <span role="cell" className="flex min-w-0 items-baseline gap-2 truncate text-slate-400">
           {joined !== undefined && (
             <span className="truncate rounded bg-white px-1 font-mono text-slate-500">
               {JSON.stringify(joined)}
@@ -454,7 +513,7 @@ function GroupRow({
           <span className="shrink-0">over {formatElapsed(spanMs)}</span>
         </span>
       </div>
-    </li>
+    </div>
   )
 }
 
@@ -478,7 +537,11 @@ function Twisty({ open, shown, nested }: { open?: boolean; shown: boolean; neste
 function Clock({ at, gaps }: { at?: Stamp; gaps: boolean }) {
   if (!at?.stamped) {
     return (
-      <span className="text-right text-slate-300" title="Recorded without an elapsed time">
+      <span
+        role="cell"
+        className="text-right text-slate-300"
+        title="Recorded without an elapsed time"
+      >
         —
       </span>
     )
@@ -486,6 +549,7 @@ function Clock({ at, gaps }: { at?: Stamp; gaps: boolean }) {
 
   return (
     <span
+      role="cell"
       className="text-right tabular-nums text-slate-400"
       title={
         gaps
@@ -520,7 +584,12 @@ function FilterBox({ value, onChange }: { value: string; onChange: (next: string
         className="min-w-0 flex-1 bg-transparent text-[11px] text-slate-700 placeholder:text-slate-300 focus:outline-none"
       />
       {value && (
-        <button onClick={() => onChange('')} title="Clear the filter" className="shrink-0 text-slate-300 hover:text-slate-500">
+        <button
+          onClick={() => onChange('')}
+          title="Clear the filter"
+          aria-label="Clear the filter"
+          className="shrink-0 text-slate-300 hover:text-slate-500"
+        >
           <X className="size-3" />
         </button>
       )}

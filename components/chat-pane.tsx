@@ -148,7 +148,10 @@ export function ChatPane({
         {pending && <Pending afterEdit={tail?.kind === 'edit'} replaying={replaying} />}
 
         {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <div
+            role="alert"
+            className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+          >
             {error}
           </div>
         )}
@@ -248,7 +251,10 @@ function EditCard({ edit, onRevert }: { edit: EditRecord; onRevert: (edit: EditR
         <span className="flex min-w-0 items-center gap-2">
           {live && <PulseDot />}
           <span className="font-mono text-[11px] text-slate-400">str_replace</span>
-          <span className="truncate font-medium text-slate-600">
+          {/* The status label is the whole life of a tool call in four words. It
+              settles a handful of times per call, so announcing it tells a
+              reader an edit landed or was rejected without narrating the stream. */}
+          <span role="status" className="truncate font-medium text-slate-600">
             {edit.reverted ? 'Reverted' : STATUS_LABELS[edit.status]}
           </span>
         </span>

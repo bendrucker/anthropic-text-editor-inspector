@@ -31,7 +31,7 @@ export function RunControls({
   return (
     <div className="flex items-center gap-2">
       <Select value={model} onValueChange={onModel} disabled={disabled}>
-        <SelectTrigger>
+        <SelectTrigger aria-label="Model">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -47,6 +47,7 @@ export function RunControls({
         disabled={disabled || !effortAvailable}
       >
         <SelectTrigger
+          aria-label="Effort"
           title={effortAvailable ? undefined : `${choice?.label ?? 'This model'} does not accept an effort setting`}
         >
           Effort: <SelectValue />
@@ -60,6 +61,7 @@ export function RunControls({
 
       <button
         onClick={() => onFastMode(!fastMode)}
+        aria-pressed={fastMode}
         disabled={disabled || !fastAvailable}
         title={
           fastAvailable
@@ -128,7 +130,8 @@ function Breakdown({ timing }: { timing: EditTiming }) {
 
   return (
     <div className="mt-1 space-y-1">
-      <div className="flex h-1.5 overflow-hidden rounded-full bg-slate-100">
+      {/* The bar is the three numbers printed underneath it, drawn to scale. */}
+      <div aria-hidden className="flex h-1.5 overflow-hidden rounded-full bg-slate-100">
         {SEGMENTS.map((segment) => (
           <div
             key={segment.key}

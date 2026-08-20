@@ -37,7 +37,10 @@ export function RunInspector({
   const [panel, setPanel] = useState<Panel>('buffer')
 
   return (
-    <section className="flex shrink-0 flex-col border-t border-slate-200 bg-slate-50">
+    <section
+      aria-label="Run inspector"
+      className="flex shrink-0 flex-col border-t border-slate-200 bg-slate-50"
+    >
       <div className="flex shrink-0 items-center justify-between px-5 py-2">
         <span className="flex items-baseline gap-2">
           <span className="text-xs font-semibold text-slate-700">Run inspector</span>
@@ -60,14 +63,22 @@ export function RunInspector({
               {replaying ? 'Replaying…' : 'Replay at 0.25x'}
             </button>
           )}
-          <button onClick={() => setOpen((prior) => !prior)} className="text-xs text-slate-400">
+          <button
+            onClick={() => setOpen((prior) => !prior)}
+            aria-expanded={open}
+            aria-controls={open ? 'run-inspector-panels' : undefined}
+            className="text-xs text-slate-400"
+          >
             {open ? 'Hide' : 'Show'}
           </button>
         </span>
       </div>
 
       {open && (
-        <div className="grid h-72 grid-cols-[1fr_340px] overflow-hidden border-t border-slate-200">
+        <div
+          id="run-inspector-panels"
+          className="grid h-72 grid-cols-[1fr_340px] overflow-hidden border-t border-slate-200"
+        >
           <EventConsole timeline={timeline} />
 
           <Tabs.Root
