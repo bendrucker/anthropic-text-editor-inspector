@@ -7,7 +7,7 @@
  * storage directly. Reads are async because the Keychain is.
  */
 import { invoke } from '@tauri-apps/api/core'
-import { IS_DIRECT, IS_TAURI } from './endpoint'
+import { TRANSPORT } from './endpoint'
 
 const STORAGE_KEY = 'anthropic-text-editor-inspector.key'
 
@@ -42,9 +42,10 @@ const browserKeyStore: KeyStore = {
       // Nothing to clear if storage was unavailable.
     }
   },
-  description: IS_DIRECT
-    ? 'Stored in this browser only, and sent only to api.anthropic.com.'
-    : 'Stored in this browser only, and sent to the API through this build\'s own proxy.',
+  description:
+    TRANSPORT === 'direct'
+      ? 'Stored in this browser only, and sent only to api.anthropic.com.'
+      : 'Stored in this browser only, and sent to the API through this build\'s own proxy.',
 }
 
 const keychainKeyStore: KeyStore = {
@@ -60,7 +61,7 @@ const keychainKeyStore: KeyStore = {
   description: 'Stored in your Keychain, and sent only to api.anthropic.com.',
 }
 
-export const keyStore: KeyStore = IS_TAURI ? keychainKeyStore : browserKeyStore
+export const keyStore: KeyStore = TRANSPORT === 'tauri' ? keychainKeyStore : browserKeyStore
 
 export function looksLikeAnthropicKey(key: string): boolean {
   return /^sk-ant-[A-Za-z0-9_-]{20,}$/.test(key.trim())
