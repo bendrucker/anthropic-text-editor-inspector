@@ -4,10 +4,16 @@ import { Check, ChevronDown } from 'lucide-react'
 export const Select = Primitive.Root
 export const SelectValue = Primitive.Value
 
+/**
+ * A trigger's label is the name of the current choice, and a name broken across
+ * two lines reads as two choices. Every trigger in this app sits in a
+ * horizontal control row, so the row is what should break first. `className` is
+ * appended after this, so a caller that wants wrapping can still ask for it.
+ */
 export function SelectTrigger({ className, children, ...props }: React.ComponentProps<typeof Primitive.Trigger>) {
   return (
     <Primitive.Trigger
-      className={`flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-300 focus-ring disabled:cursor-not-allowed disabled:opacity-50 ${className ?? ''}`}
+      className={`flex items-center gap-1 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-300 focus-ring disabled:cursor-not-allowed disabled:opacity-50 ${className ?? ''}`}
       {...props}
     >
       {children}

@@ -59,9 +59,7 @@ export function RunControls({
   return (
     <div className="flex items-center gap-2">
       <Select value={model} onValueChange={onModel} disabled={disabled}>
-        {/* Which model is selected is the one thing here that has to stay
-            readable, so the label breaks the row before it breaks itself. */}
-        <SelectTrigger aria-label="Model" className="whitespace-nowrap">
+        <SelectTrigger aria-label="Model">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -88,7 +86,7 @@ export function RunControls({
           onValueChange={(next) => onEffort(next as EffortChoice['id'])}
           disabled={disabled || !effortAvailable}
         >
-          <SelectTrigger aria-label="Effort" className="whitespace-nowrap">
+          <SelectTrigger aria-label="Effort">
             Effort: <SelectValue />
           </SelectTrigger>
           <SelectContent>
