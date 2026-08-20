@@ -1,6 +1,32 @@
 @import 'tailwindcss';
 @plugin '@tailwindcss/typography';
 
+/* Control edges ------------------------------------------------------------- */
+
+/* The edge of a control that has nothing else marking where it starts.
+   `slate-200` measures 1.23:1 on white and 1.18:1 on `slate-50`, against the 3:1
+   WCAG 1.4.11 asks of anything a user has to find in order to operate it. A
+   button with a white fill on a white pane is its border and nothing else.
+
+   This is a token rather than a palette step because the slate ramp has a hole
+   exactly here: `slate-400` is 2.63:1 and fails, `slate-500` is 4.76:1 and lands
+   half again past the bar. #44 could take the step it needed because it was
+   darkening fills, where the extra weight is spread over an area and costs
+   nothing. Spent on a hairline drawn around every control in a dense inspector,
+   the same step reads as a boxed-in UI. 3.48:1 clears the requirement on all
+   three grounds this app paints and stops there.
+
+   `control-strong` is the hover and focus edge, and is `slate-500` exactly. It
+   has to be *darker* than the resting edge, not lighter: the `slate-300` and
+   `slate-400` these replace were picked to darken a 1.23:1 hairline and would
+   now lighten a compliant one, which is a state change that loses contrast. */
+@theme {
+  /* 3.48:1 on white, 3.33:1 on slate-50, 3.18:1 on slate-100. */
+  --color-control: oklch(63% 0.044 257);
+  /* 4.76:1 on white, 4.55:1 on slate-50. */
+  --color-control-strong: oklch(55.4% 0.046 257.417);
+}
+
 :root {
   --edit-target: oklch(0.94 0.03 250);
   --edit-ambiguous: oklch(0.92 0.09 85);

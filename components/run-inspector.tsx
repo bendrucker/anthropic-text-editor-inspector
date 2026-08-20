@@ -87,7 +87,7 @@ export function RunInspector({
               <button
                 onClick={() => onReplay(replaying ? undefined : 0.25)}
                 disabled={replaying}
-                className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-600 transition hover:border-slate-300 disabled:opacity-40"
+                className="rounded-md border border-control bg-white px-2 py-0.5 text-[11px] font-medium text-slate-600 transition hover:border-control-strong disabled:opacity-40"
               >
                 {replaying ? 'Replaying…' : 'Replay at 0.25x'}
               </button>

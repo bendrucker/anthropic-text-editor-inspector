@@ -118,7 +118,7 @@ export function RunControls({
           className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-40 ${
             fastMode
               ? 'border-amber-300 bg-amber-50 text-amber-800'
-              : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
+              : 'border-control bg-white text-slate-500 hover:border-control-strong'
           }`}
         >
           Fast
