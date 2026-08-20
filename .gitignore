@@ -4,3 +4,5 @@ tmp/
 *.tsbuildinfo
 .DS_Store
 .env*
+# Scratch wrappers make_icon.py writes so headless Chrome can rasterize the SVGs.
+design/app-icon/*.html

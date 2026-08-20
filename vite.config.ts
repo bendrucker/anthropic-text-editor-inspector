@@ -1,12 +1,43 @@
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { viteSingleFile } from 'vite-plugin-singlefile'
+import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { PROXY_PATH } from './lib/proxy-path.ts'
 
 // `bun run build:single` inlines every asset into one index.html.
 const singleFile = process.env.SINGLE_FILE === '1'
+
+// Both icons come from `design/app-icon/icon-web.svg`, but they reach the page
+// differently, because `build:single` copies `public/` next to its one file
+// instead of inlining it. A file there would leave that build linking an icon
+// nobody deploys.
+//
+// The favicon is inlined as a `data:` URI, which every target can carry. Safari
+// does not reliably honor one for `apple-touch-icon`, so that stays a real PNG
+// and the single-file build goes without it: a home-screen bookmark falls back
+// to a screenshot, which is a smaller loss than a broken link.
+function icons(): Plugin {
+  const svg = readFileSync(new URL('design/app-icon/icon-web.svg', import.meta.url), 'utf8')
+  const favicon = `data:image/svg+xml,${encodeURIComponent(svg)}`
+
+  return {
+    name: 'icons',
+    transformIndexHtml: () => [
+      { tag: 'link', attrs: { rel: 'icon', href: favicon }, injectTo: 'head' },
+      ...(singleFile
+        ? []
+        : [
+            {
+              tag: 'link',
+              attrs: { rel: 'apple-touch-icon', href: './apple-touch-icon.png' },
+              injectTo: 'head' as const,
+            },
+          ]),
+    ],
+  }
+}
 
 export default defineConfig(({ command, mode, isPreview }) => {
   const env = loadEnv(mode, process.cwd(), '')
@@ -26,9 +57,12 @@ export default defineConfig(({ command, mode, isPreview }) => {
       : undefined
 
   return {
-    plugins: [react(), tailwindcss(), ...(singleFile ? [viteSingleFile()] : [])],
+    plugins: [react(), tailwindcss(), icons(), ...(singleFile ? [viteSingleFile()] : [])],
     // Relative so the build works from a project subpath, as GitHub Pages serves.
     base: './',
+    // Nothing in `public/` belongs beside a build whose whole point is being one
+    // file, and the touch icon is all that is in there.
+    ...(singleFile ? { publicDir: false as const } : {}),
     resolve: {
       alias: { '@': fileURLToPath(new URL('.', import.meta.url)) },
     },
