@@ -3,6 +3,7 @@ import { locateEdit, applyEdit, type Match } from './str-replace'
 import { scanEditInput } from './partial-json'
 import { findModel, DEFAULT_MODEL, DEFAULT_EFFORT, type EffortChoice } from './models'
 import type { BufferState, TimelineEntry } from './timeline'
+import { BASE_URL, IS_DIRECT } from './endpoint'
 
 /**
  * The edit loop, running in the browser against the user's own key.
@@ -140,6 +141,18 @@ export interface RunOptions {
   handlers: AgentHandlers
 }
 
+/**
+ * Anthropic refuses browser-origin requests from organizations that set custom
+ * retention. The refusal arrives either as a readable body or, when the
+ * preflight is what got rejected, as a bare network failure the browser will
+ * not explain. Both mean the same thing and have the same fix.
+ */
+const CORS_REFUSAL = /CORS requests are not allowed/i
+const OPAQUE_NETWORK_FAILURE = /failed to fetch|load failed|networkerror/i
+
+const CORS_HELP =
+  'This organization does not allow browser requests to the API. Run the inspector locally with `bun run dev`, which sends requests through the dev server instead, and your key still goes no further than your own machine.'
+
 /** The SDK's message for a failed request is the raw response body. */
 export function describeFailure(cause: unknown): string {
   if (cause instanceof Anthropic.APIError) {
@@ -147,17 +160,31 @@ export function describeFailure(cause: unknown): string {
     if (cause.status === 429) return 'Rate limited. Wait a moment and try again.'
 
     const body = cause.error as { error?: { message?: string } } | undefined
-    if (body?.error?.message) return body.error.message
+    const message = body?.error?.message
+    if (message) return CORS_REFUSAL.test(message) ? CORS_HELP : message
   }
 
-  return cause instanceof Error ? cause.message : String(cause)
+  const message = cause instanceof Error ? cause.message : String(cause)
+  if (CORS_REFUSAL.test(message)) return CORS_HELP
+
+  // A blocked preflight is indistinguishable from being offline, so say both.
+  if (IS_DIRECT && OPAQUE_NETWORK_FAILURE.test(message)) {
+    return `The request never reached the API. Either you are offline, or this organization does not allow browser requests. ${CORS_HELP}`
+  }
+
+  return message
 }
 
 export function createClient(apiKey: string) {
   return new Anthropic({
     apiKey,
+    baseURL: BASE_URL,
     dangerouslyAllowBrowser: true,
-    defaultHeaders: { 'anthropic-dangerous-direct-browser-access': 'true' },
+    // The header only means anything on a direct call. Through a proxy the
+    // request stops being a browser request before the API sees it.
+    ...(IS_DIRECT
+      ? { defaultHeaders: { 'anthropic-dangerous-direct-browser-access': 'true' } }
+      : {}),
   })
 }
 

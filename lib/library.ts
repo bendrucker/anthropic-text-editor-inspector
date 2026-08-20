@@ -25,16 +25,6 @@ export interface LibraryDocument {
  */
 export const SAMPLES: LibraryDocument[] = [
   {
-    id: 'pipeline-review',
-    title: 'Q3 Pipeline Review',
-    description: 'Dense tables and figures, where column padding makes exact matching unforgiving.',
-    markdown: pipelineReview.trimEnd(),
-    prompts: [
-      'Tighten the executive summary. Less hedging.',
-      'The EMEA paragraph buries the slipped deal. Lead with it.',
-    ],
-  },
-  {
     id: 'trail-conditions',
     title: 'Trail Conditions',
     description: 'Nested lists, where an edit inside a list item crosses Markdown syntax.',
@@ -42,6 +32,16 @@ export const SAMPLES: LibraryDocument[] = [
     prompts: [
       'The Upper Basin note buries the reroute. Lead with it.',
       'Tighten the Work Priorities section.',
+    ],
+  },
+  {
+    id: 'pipeline-review',
+    title: 'Q3 Pipeline Review',
+    description: 'Dense tables and figures, where column padding makes exact matching unforgiving.',
+    markdown: pipelineReview.trimEnd(),
+    prompts: [
+      'Tighten the executive summary. Less hedging.',
+      'The EMEA paragraph buries the slipped deal. Lead with it.',
     ],
   },
   {
@@ -86,6 +86,7 @@ export const SAMPLES: LibraryDocument[] = [
   },
 ]
 
+/** The app opens here, on the sample with the least to read before the first edit. */
 export const DEFAULT_DOCUMENT = SAMPLES[0]
 
 export function findDocument(id: string): LibraryDocument | undefined {

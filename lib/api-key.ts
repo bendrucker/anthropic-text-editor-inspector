@@ -6,6 +6,7 @@
  * macOS Keychain, which is why callers go through the seam rather than touching
  * storage directly.
  */
+import { IS_DIRECT } from './endpoint'
 
 const STORAGE_KEY = 'anthropic-text-editor-inspector.key'
 
@@ -40,7 +41,9 @@ export const browserKeyStore: KeyStore = {
       // Nothing to clear if storage was unavailable.
     }
   },
-  description: 'Stored in this browser only, and sent only to api.anthropic.com.',
+  description: IS_DIRECT
+    ? 'Stored in this browser only, and sent only to api.anthropic.com.'
+    : 'Stored in this browser only, and sent to the API through this build\'s own proxy.',
 }
 
 export function looksLikeAnthropicKey(key: string): boolean {
