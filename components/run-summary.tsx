@@ -165,6 +165,7 @@ function explain(key: SpanKey, run: Run, timing: EditTiming): ReactNode {
 function RunBar({ run, timing, scaleMs }: { run: Run; timing: EditTiming; scaleMs: number }) {
   const spans = spansOf(timing, landedIn(run))
   const keys: SpanKey[] = ['retries', 'connect', 'preamble', 'target', 'render']
+  const drawn = keys.filter((key) => spans[key] > 0)
   const endMs = timing.totalMs ?? timing.targetMs
   const overFill = (timing.settledMs ?? 0) > endMs
 
@@ -173,30 +174,31 @@ function RunBar({ run, timing, scaleMs }: { run: Run; timing: EditTiming; scaleM
     // each end, which is wider than a small segment is drawn.
     <div aria-hidden className="relative h-2.5 overflow-hidden rounded-sm bg-slate-100">
       <div className="flex h-full">
-        {keys.map((key) => {
-          const ms = spans[key]
-          if (ms <= 0) return null
-          return (
-            <Tooltip key={key} content={explain(key, run, timing)} side="top">
-              {/* The one place the bar is not to scale. A segment under a pixel
-                  reads as absent, and absent is the wrong word for the only
-                  work this app does. */}
-              <div
-                className={`${TONES[key]} shrink-0`}
-                style={{ width: `${(ms / scaleMs) * 100}%`, minWidth: '3px' }}
-              />
-            </Tooltip>
-          )
-        })}
+        {drawn.map((key, index) => (
+          <Tooltip key={key} content={explain(key, run, timing)} side="top">
+            {/* The one place the bar is not to scale. A segment under a pixel
+                reads as absent, and absent is the wrong word for the only
+                work this app does.
+
+                The right edge is a white rule wherever another fill follows.
+                Every fill sits between L 0.51 and 0.55, which clears the track
+                at 4.35:1 or better and is exactly what leaves nothing between
+                two of them: target against render measures 1.02:1. White
+                measures 4.76 against the palest fill and better against the
+                rest, so one rule separates every pair without moving a tone
+                the track contrast depends on.
+
+                Drawn as the segment's own border rather than as a rule placed
+                by ratio, so it lands on the boundary the flex row actually
+                produced. A segment held at the 3px floor above is wider than
+                its share, and every boundary after it has moved. */}
+            <div
+              className={`${TONES[key]} shrink-0 ${index < drawn.length - 1 ? 'border-r border-white' : ''}`}
+              style={{ width: `${(spans[key] / scaleMs) * 100}%`, minWidth: '3px' }}
+            />
+          </Tooltip>
+        ))}
       </div>
-      {spans.retries > 0 && (
-        // Retries and connect are the same kind of time, so they take the same
-        // colour and a rule rather than a hue nobody has learned yet.
-        <div
-          className="absolute inset-y-0 w-px bg-white"
-          style={{ left: `${(spans.retries / scaleMs) * 100}%` }}
-        />
-      )}
       {/* The mark lands on bare track when the run outlived the document and
           inside the render fill when the document outlived the run. Those two
           backdrops need opposite ink for the mark to be visible against either,
@@ -239,8 +241,12 @@ function RenderBar({ timing }: { timing: EditTiming }) {
           empty track, which reads as a broken bar rather than a short one. */}
       {waiting !== null && landing !== null && (
         <div aria-hidden className="flex h-2.5 overflow-hidden rounded-sm bg-slate-100">
+          {/* Same rule as the run bar, on the one adjacency this bar can
+              produce. `waiting` is bare track, so it separates these two on its
+              own, and the rule is only needed for the run that went straight
+              from deciding to landing. */}
           <div
-            className="shrink-0 bg-slate-500"
+            className={`shrink-0 bg-slate-500 ${waiting === 0 && landing > 0 ? 'border-r border-white' : ''}`}
             style={{ width: `${(gap / window) * 100}%`, minWidth: '3px' }}
           />
           <div style={{ width: `${(waiting / window) * 100}%` }} />
