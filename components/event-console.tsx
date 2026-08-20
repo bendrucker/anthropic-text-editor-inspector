@@ -379,7 +379,10 @@ function ColumnHeader() {
  * The `request sent (turn N)` entry is promoted into this rather than drawn
  * beside it. That entry is the turn's announcement, so leaving it in the list as
  * one more monospace row alongside `content_block_stop` was the defect. Its
- * settings ride along here, which is the only thing lost by promoting it.
+ * settings ride along in the tooltip, which is the only thing lost by promoting
+ * it. Printed on the band they set the console's minimum width: this row is the
+ * one thing here wider than a truncating column, and the drawer gives 340px of
+ * its width to the panel beside it.
  *
  * It sticks to the top of its own section, so the turn stays named while its own
  * rows scroll past and leaves once they have. That matters most in the short
@@ -391,23 +394,20 @@ function TurnSeparator({ turn }: { turn: Turn }) {
       role="row"
       className="sticky top-0 z-10 -mx-3 border-y border-slate-400 bg-slate-200 px-3 py-0.5 text-[11px] leading-relaxed"
     >
-      <span role="cell" aria-colspan={5} className="flex items-baseline gap-1.5">
-        <span className="shrink-0 font-medium text-slate-700">turn {turn.number}</span>
-        <span className="shrink-0 font-medium text-slate-700 tabular-nums">
-          · {formatElapsed(turn.spanMs)}
-          {turn.closed ? '' : ' so far'}
-        </span>
-        {(turn.changed || turn.closed) && (
-          <span className="shrink-0 text-slate-700">
-            · {turn.changed ? 'document changed' : 'no document change'}
+      <Tooltip content={turn.detail} side="top" align="start">
+        <span role="cell" aria-colspan={5} className="flex w-fit items-baseline gap-1.5">
+          <span className="shrink-0 font-medium text-slate-700">turn {turn.number}</span>
+          <span className="shrink-0 font-medium text-slate-700 tabular-nums">
+            · {formatElapsed(turn.spanMs)}
+            {turn.closed ? '' : ' so far'}
           </span>
-        )}
-        {turn.detail && (
-          <Tooltip content={turn.detail}>
-            <span className="min-w-0 truncate text-[10px] text-slate-600">{turn.detail}</span>
-          </Tooltip>
-        )}
-      </span>
+          {(turn.changed || turn.closed) && (
+            <span className="shrink-0 text-slate-700">
+              · {turn.changed ? 'document changed' : 'no document change'}
+            </span>
+          )}
+        </span>
+      </Tooltip>
     </div>
   )
 }
