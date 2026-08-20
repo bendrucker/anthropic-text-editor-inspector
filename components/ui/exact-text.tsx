@@ -17,7 +17,7 @@ export function ExactText({
 }) {
   return (
     <pre
-      className={`max-h-32 overflow-auto rounded border border-black/5 bg-white/60 px-2 py-1.5 font-mono text-[11px] leading-relaxed whitespace-pre-wrap ${className}`}
+      className={`max-h-32 overflow-y-auto rounded border border-black/5 bg-white/60 px-2 py-1.5 font-mono text-[11px] leading-relaxed wrap-break-word whitespace-pre-wrap ${className}`}
     >
       {text.split(/( {2,}|\n|\t)/).map((part, index) =>
         /^( {2,}|\n|\t)$/.test(part) ? (
