@@ -64,6 +64,33 @@ function spansOf(timing: EditTiming, landed: boolean) {
 
 type SpanKey = keyof ReturnType<typeof spansOf>
 
+/** Left to right along the bar, which is also the order they happen in. */
+const SPAN_ORDER: SpanKey[] = ['retries', 'connect', 'preamble', 'target', 'render']
+
+/** What the bar draws. A span that took no time has no width to give it. */
+function drawnSpans(spans: Record<SpanKey, number>): SpanKey[] {
+  return SPAN_ORDER.filter((key) => spans[key] > 0)
+}
+
+/** The three the wait is always made of, so the legend always names them. */
+const ALWAYS_NAMED: SpanKey[] = ['connect', 'preamble', 'target']
+
+/**
+ * What the legend names, which is every span the bar could have drawn.
+ *
+ * A span's explanation lives on its bar segment, and the bar is `aria-hidden`.
+ * So a span the legend omits can be reached by pointing at it and no other way,
+ * and `retries` and `render` carry the two longest explanations in the row.
+ *
+ * Wider than `drawnSpans` at both ends. A zero span still names the control
+ * aimed at it, which is worth a line even on the run that spent nothing there,
+ * and a run that never retried should not be told about a `retries 0ms` it did
+ * not have.
+ */
+function legendSpans(spans: Record<SpanKey, number>): SpanKey[] {
+  return SPAN_ORDER.filter((key) => ALWAYS_NAMED.includes(key) || spans[key] > 0)
+}
+
 /**
  * Dark enough to read against the track, which is a requirement these tones only
  * acquired once the bars stopped filling it.
@@ -164,8 +191,7 @@ function explain(key: SpanKey, run: Run, timing: EditTiming): ReactNode {
  */
 function RunBar({ run, timing, scaleMs }: { run: Run; timing: EditTiming; scaleMs: number }) {
   const spans = spansOf(timing, landedIn(run))
-  const keys: SpanKey[] = ['retries', 'connect', 'preamble', 'target', 'render']
-  const drawn = keys.filter((key) => spans[key] > 0)
+  const drawn = drawnSpans(spans)
   const endMs = timing.totalMs ?? timing.targetMs
   const overFill = (timing.settledMs ?? 0) > endMs
 
@@ -386,7 +412,10 @@ function RunRow({
       <button
         onClick={onOpen}
         aria-expanded={expanded}
-        className="flex w-full items-baseline justify-between gap-2 text-left"
+        // Offset rather than inset: the list scrolls, but its padding leaves the
+        // ring room on both sides, so it survives the clip a full-bleed row
+        // cannot.
+        className="focus-ring flex w-full items-baseline justify-between gap-2 rounded-xs text-left"
       >
         <span className="truncate text-slate-600">
           {label}
@@ -424,11 +453,12 @@ function RunRow({
           {expanded && (
             <>
               <p className="flex flex-wrap gap-x-2 text-[10px] tabular-nums text-slate-600">
-                {(['connect', 'preamble', 'target'] as const).map((key) => (
-                  <Legend key={key} explanation={explain(key, run, timing)}>
-                    {key} {brief(spansOf(timing, landed)[key])}
-                  </Legend>
-                ))}
+                {spans
+                  && legendSpans(spans).map((key) => (
+                    <Legend key={key} explanation={explain(key, run, timing)}>
+                      {key} {brief(spans[key])}
+                    </Legend>
+                  ))}
               </p>
               {landed && <RenderBar timing={timing} />}
               {tailLine(timing, landed) && (
