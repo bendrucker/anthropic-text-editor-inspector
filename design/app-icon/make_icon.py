@@ -1,12 +1,31 @@
-"""Generate the app icon SVG plus an HTML wrapper for headless-Chrome rasterizing.
+"""Generate the app icon SVGs plus HTML wrappers for headless-Chrome rasterizing.
 
 Colors come from `styles/globals.css`, converted out of oklch: the blue is the
 app's primary accent and the amber is `--edit-ambiguous`.
 
-To change the icon, edit the constants below, then rasterize `icon.svg` to a
-1024x1024 PNG and run `bunx tauri icon <png>` from the repo root, which rewrites
-everything under `src-tauri/icons/`. No rasterizer is installed here, so the
-HTML wrapper exists to screenshot the SVG with headless Chrome.
+`icon.svg` is the desktop icon, drawn on Apple's macOS grid: an 824x824 rounded
+body floating in a 1024 canvas, because macOS and Windows want that margin.
+`icon-web.svg` is the same artwork cropped to the body, because a browser tab
+and an iOS home screen supply their own margin and mask.
+
+To change the icon, edit the constants below, then:
+
+- rasterize `icon.svg` to a 1024x1024 PNG and run `bunx tauri icon <png>` from
+  the repo root, which rewrites everything under `src-tauri/icons/`
+- rasterize `icon-web.svg` to `public/apple-touch-icon.png` at 180x180
+
+No rasterizer is installed here, so the HTML wrappers exist to screenshot the
+SVGs with headless Chrome. Headless clamps the window to a few hundred pixels,
+so 180 has to come from a downscale rather than from `--window-size`:
+
+    chrome="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+    "$chrome" --headless --disable-gpu --hide-scrollbars \\
+      --screenshot=tmp/touch-720.png --window-size=720,720 \\
+      design/app-icon/icon-web.html
+    sips -z 180 180 tmp/touch-720.png --out public/apple-touch-icon.png
+
+The favicon needs no rasterizing. `vite.config.ts` reads `icon-web.svg` and
+inlines it into the document as a `data:` URI.
 """
 
 import math
@@ -91,9 +110,19 @@ HX2, HY2 = LENS_CX + HANDLE_TO * DIAG, LENS_CY + HANDLE_TO * DIAG
 GAP = 18  # blue separation cut into the T where the magnifier crosses it
 
 
-def svg():
+def svg(crop=False):
     body = squircle_path(INSET, INSET, BODY, CORNER_R, SMOOTHING)
-    return f'''<svg xmlns="http://www.w3.org/2000/svg" width="{CANVAS}" height="{CANVAS}" viewBox="0 0 {CANVAS} {CANVAS}">
+    view = f'{INSET:g} {INSET:g} {BODY} {BODY}' if crop else f'0 0 {CANVAS} {CANVAS}'
+    # Cropping throws away the transparent margin, and with it the only thing
+    # that made the rounded corners read as corners. An iOS home screen would
+    # fill them with black, so the cropped variant paints them instead. The
+    # backdrop is the same gradient as the body, so the seam is invisible.
+    backdrop = (
+        f'<rect x="{INSET:g}" y="{INSET:g}" width="{BODY}" height="{BODY}" fill="url(#bg)"/>\n  '
+        if crop
+        else ''
+    )
+    return f'''<svg xmlns="http://www.w3.org/2000/svg" width="{CANVAS}" height="{CANVAS}" viewBox="{view}">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0.35" y2="1">
       <stop offset="0" stop-color="{BG_TOP}"/>
@@ -109,7 +138,7 @@ def svg():
     </mask>
   </defs>
 
-  <path d="{body}" fill="url(#bg)"/>
+  {backdrop}<path d="{body}" fill="url(#bg)"/>
 
   <g clip-path="url(#body)">
     <circle cx="{LENS_CX}" cy="{LENS_CY}" r="{LENS_INNER}" fill="{GLASS}" opacity="0.34"/>
@@ -129,17 +158,20 @@ def svg():
 
 
 def html(markup):
+    # Sizing the SVG to the viewport lets `--window-size` pick the raster size,
+    # so the artwork is drawn at that size rather than resampled down from 1024.
     return f'''<!doctype html>
 <meta charset="utf-8">
 <style>
   html, body {{ margin: 0; padding: 0; background: transparent; }}
-  svg {{ display: block; }}
+  svg {{ display: block; width: 100vw; height: 100vh; }}
 </style>
 {markup}
 '''
 
 
-markup = svg()
-(TMP / 'icon.svg').write_text(markup)
-(TMP / 'icon.html').write_text(html(markup))
-print('wrote icon.svg and icon.html')
+for name, crop in (('icon', False), ('icon-web', True)):
+    markup = svg(crop)
+    (TMP / f'{name}.svg').write_text(markup)
+    (TMP / f'{name}.html').write_text(html(markup))
+    print(f'wrote {name}.svg and {name}.html')
