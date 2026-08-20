@@ -25,6 +25,7 @@ export function DocumentPicker({
         value={document.id}
         disabled={disabled}
         onChange={(event) => onSelect(event.target.value)}
+        aria-label="Document"
         title={document.description}
         className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-300 focus:outline-none disabled:opacity-50"
       >

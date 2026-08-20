@@ -32,12 +32,23 @@ export function Workspace() {
         </div>
 
         <div className="flex items-center gap-4">
-          {doc.running && (
-            <span className="flex items-center gap-2 text-xs text-slate-500">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-blue-500" />
-              Editing
-            </span>
-          )}
+          {/* A live region announces text that changes inside it, so this
+              container has to outlive the run rather than appear with it. The
+              end of a run leaves nothing on screen at all, which is what the
+              invisible half is for. */}
+          <span
+            role="status"
+            className={doc.running ? 'flex items-center gap-2 text-xs text-slate-500' : 'sr-only'}
+          >
+            {doc.running ? (
+              <>
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-blue-500" />
+                Editing
+              </>
+            ) : (
+              doc.runs.length > 0 && 'Run finished'
+            )}
+          </span>
           <RunControls
             model={doc.model}
             onModel={doc.setModel}
@@ -65,7 +76,7 @@ export function Workspace() {
         disabled={doc.running}
       />
 
-      <div className="grid min-h-0 flex-1 grid-cols-[1fr_380px] overflow-hidden">
+      <main className="grid min-h-0 flex-1 grid-cols-[1fr_380px] overflow-hidden">
         <DocumentPane
           initialMarkdown={doc.document.markdown}
           locked={doc.running}
@@ -85,7 +96,7 @@ export function Workspace() {
           onStop={doc.stop}
           onRevert={doc.revert}
         />
-      </div>
+      </main>
 
       <RunInspector
         timeline={doc.timeline}
