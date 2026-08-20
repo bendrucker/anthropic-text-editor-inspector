@@ -176,7 +176,7 @@ export function EventConsole({ timeline }: EventConsoleProps) {
 
         <Popover>
           <PopoverTrigger asChild>
-            <button className="flex items-center gap-1 rounded border border-control bg-white px-1.5 py-0.5 text-[10px] font-medium text-slate-600 transition hover:border-control-strong">
+            <button className="focus-ring flex items-center gap-1 rounded border border-control bg-white px-1.5 py-0.5 text-[10px] font-medium text-slate-600 transition hover:border-control-strong">
               {mutedNames.size > 0 ? `${mutedNames.size} type${mutedNames.size === 1 ? '' : 's'} hidden` : 'Types'}
               <ChevronDown className="size-3 text-slate-500" />
             </button>
@@ -189,7 +189,7 @@ export function EventConsole({ timeline }: EventConsoleProps) {
               <button
                 onClick={() => setMutedNames(new Set())}
                 disabled={mutedNames.size === 0}
-                className="text-[10px] text-slate-500 underline underline-offset-2 disabled:text-slate-300 disabled:no-underline"
+                className="focus-ring rounded-xs text-[10px] text-slate-500 underline underline-offset-2 disabled:text-slate-300 disabled:no-underline"
               >
                 Show all
               </button>
@@ -234,7 +234,7 @@ export function EventConsole({ timeline }: EventConsoleProps) {
           {filtered && (
             <button
               onClick={clearFilters}
-              className="text-[10px] text-slate-500 underline underline-offset-2 hover:text-slate-700"
+              className="focus-ring rounded-xs text-[10px] text-slate-500 underline underline-offset-2 hover:text-slate-700"
             >
               {shown} of {listed}
             </button>
@@ -244,7 +244,7 @@ export function EventConsole({ timeline }: EventConsoleProps) {
               <PopoverTrigger asChild>
                 <button
                   aria-label="Console settings"
-                  className="rounded border border-transparent p-0.5 text-slate-500 transition hover:border-control-strong hover:bg-white hover:text-slate-700"
+                  className="focus-ring rounded border border-transparent p-0.5 text-slate-500 transition hover:border-control-strong hover:bg-white hover:text-slate-700"
                 >
                   <Settings2 className="size-3.5" />
                 </button>
@@ -281,7 +281,7 @@ export function EventConsole({ timeline }: EventConsoleProps) {
           ) : sections.length === 0 ? (
             <p className="py-6 text-center text-xs text-slate-500">
               No event matches.{' '}
-              <button onClick={clearFilters} className="underline underline-offset-2">
+              <button onClick={clearFilters} className="focus-ring rounded-xs underline underline-offset-2">
                 Clear the filters
               </button>
             </p>
@@ -336,7 +336,7 @@ export function EventConsole({ timeline }: EventConsoleProps) {
       {!following && sections.length > 0 && (
         <button
           onClick={() => setFollowing(true)}
-          className="absolute bottom-2 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full border border-control bg-white/95 px-2.5 py-1 text-[10px] font-medium text-slate-600 shadow-sm transition hover:border-control-strong"
+          className="focus-ring absolute bottom-2 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full border border-control bg-white/95 px-2.5 py-1 text-[10px] font-medium text-slate-600 shadow-sm transition hover:border-control-strong"
         >
           <ArrowDown className="size-3" />
           Follow the tail
@@ -878,7 +878,7 @@ function FilterBox({ value, onChange }: { value: string; onChange: (next: string
           <button
             onClick={() => onChange('')}
             aria-label="Clear the filter"
-            className="shrink-0 text-slate-500 hover:text-slate-700"
+            className="focus-ring shrink-0 rounded-xs text-slate-500 hover:text-slate-700"
           >
             <X className="size-3" />
           </button>
@@ -888,10 +888,25 @@ function FilterBox({ value, onChange }: { value: string; onChange: (next: string
   )
 }
 
+/* An edge keeps its own tone where the tone says something the fill cannot, and
+   drops to `control` where the fill already says it.
+
+   `wire` and `plain` name a category, and the chip prints that category as its
+   own label. `border-blue-200` measured 1.31:1 against the blue fill, and the
+   blue ramp has no compliant hairline to promote it to: the first step that
+   clears with any margin is `oklch(64% 0.204 258.8)`, which is `blue-500` in all
+   but name and so is the focus ring. A resting edge that mimics the ring on a
+   control that now has one is worse than a grey edge. So `wire` follows the
+   switches #68 moved and differs from `plain` by fill and label alone.
+
+   `problem` names a state, which is the one thing a label shares with amber
+   here and the meaning #68 kept for it. `border-amber-300` measured 1.40:1
+   against its fill, so it takes the compliant amber edge instead of losing the
+   tone. */
 const CHIP_TONES = {
-  wire: 'border-blue-200 bg-blue-50 text-blue-600',
+  wire: 'border-control bg-blue-50 text-blue-600',
   plain: 'border-control bg-white text-slate-600',
-  problem: 'border-amber-300 bg-amber-50 text-amber-700',
+  problem: 'border-control-warn bg-amber-50 text-amber-700',
 }
 
 function Chip({
@@ -914,7 +929,7 @@ function Chip({
       <button
         onClick={onClick}
         aria-pressed={active}
-        className={`flex shrink-0 items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-medium transition ${
+        className={`focus-ring flex shrink-0 items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-medium transition ${
           active ? CHIP_TONES[tone] : 'border-transparent bg-transparent text-slate-500 hover:text-slate-700'
         }`}
       >

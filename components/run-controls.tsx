@@ -117,7 +117,7 @@ export function RunControls({
           disabled={disabled || !fastAvailable}
           className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-40 ${
             fastMode
-              ? 'border-amber-300 bg-amber-50 text-amber-800'
+              ? 'border-control-warn bg-amber-50 text-amber-800'
               : 'border-control bg-white text-slate-500 hover:border-control-strong'
           }`}
         >

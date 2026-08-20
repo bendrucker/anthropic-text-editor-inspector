@@ -49,7 +49,7 @@ function KeyPopover({ apiKey, onApiKey }: ApiKeyControlProps) {
         className={`whitespace-nowrap rounded-md border px-2.5 py-1 text-xs font-medium transition ${
           apiKey
             ? 'border-control text-slate-500 hover:bg-slate-50'
-            : 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100'
+            : 'border-control-warn bg-amber-50 text-amber-800 hover:bg-amber-100'
         }`}
       >
         {apiKey ? `Key ${mask(apiKey)}` : 'Add API key'}
