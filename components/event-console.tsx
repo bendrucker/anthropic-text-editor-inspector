@@ -22,10 +22,10 @@ export function EventConsole({ timeline }: EventConsoleProps) {
   const [mutedNames, setMutedNames] = useState<ReadonlySet<string>>(new Set())
   const [problemsOnly, setProblemsOnly] = useState(false)
   const [foldRepeats, setFoldRepeats] = useState(false)
-  const [showGaps, setShowGaps] = useState(false)
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
 
   const scrollRef = useRef<HTMLDivElement>(null)
+  const rowsRef = useRef<HTMLDivElement>(null)
   const [following, setFollowing] = useState(true)
 
   // A run only ever appends, so a different entry at the head means a new run, a
@@ -39,7 +39,11 @@ export function EventConsole({ timeline }: EventConsoleProps) {
     setExpanded(new Set())
   }
 
-  const census = useMemo(() => tally(timeline), [timeline])
+  // A turn head is not a row, so nothing that counts, filters, or folds rows may
+  // count it either. Every census below is taken over the same set the list draws.
+  const turns = useMemo(() => planTurns(timeline), [timeline])
+  const heads = useMemo(() => new Set(turns.map((turn) => turn.id)), [turns])
+  const census = useMemo(() => tally(timeline, heads), [timeline, heads])
 
   // Timings come off the full timeline, so a filtered row still reports the
   // wait that actually preceded it. A gap is measured from the last event that
@@ -48,30 +52,38 @@ export function EventConsole({ timeline }: EventConsoleProps) {
   const stamps = useMemo(() => {
     const map = new Map<string, Stamp>()
     let previous = 0
+    let afterHead = false
     for (const [index, entry] of timeline.entries()) {
       const stamped = index === 0 || entry.atMs > 0
-      map.set(entry.id, { index, atMs: entry.atMs, gapMs: entry.atMs - previous, stamped })
-      if (stamped) previous = entry.atMs
+      const gapMs = entry.atMs - previous
+      map.set(entry.id, { index, atMs: entry.atMs, gapMs, stamped, afterHead })
+      if (stamped) {
+        previous = entry.atMs
+        afterHead = heads.has(entry.id)
+      }
     }
     return map
-  }, [timeline])
+  }, [timeline, heads])
 
-  const { rows, shown } = useMemo(() => {
+  const { sections, shown, listed } = useMemo(() => {
     const needle = query.trim().toLowerCase()
     const kept = timeline.filter((entry) => {
+      if (heads.has(entry.id)) return false
       if (mutedSources.has(entry.source)) return false
       if (mutedNames.has(splitLabel(entry.label).name)) return false
       if (problemsOnly && entry.tone !== 'bad') return false
       return needle === '' || haystack(entry).includes(needle)
     })
 
+    const events = foldRepeats ? fold(kept, stamps) : kept.map((entry) => single(entry, stamps))
     return {
-      rows: foldRepeats ? fold(kept, stamps) : kept.map((entry) => single(entry, stamps)),
+      sections: sectioned(events, turns, stamps),
       shown: kept.length,
+      listed: timeline.length - heads.size,
     }
-  }, [timeline, stamps, query, mutedSources, mutedNames, problemsOnly, foldRepeats])
+  }, [timeline, turns, heads, stamps, query, mutedSources, mutedNames, problemsOnly, foldRepeats])
 
-  const filtered = shown !== timeline.length
+  const filtered = shown !== listed
 
   // A console follows the tail until you scroll away from it, and picks the
   // tail up again when you come back. Yanking a list someone is reading is
@@ -79,9 +91,39 @@ export function EventConsole({ timeline }: EventConsoleProps) {
   useEffect(() => {
     const view = scrollRef.current
     if (following && view) view.scrollTo({ top: view.scrollHeight })
-  }, [rows, following])
+  }, [sections, following])
 
-  const toggle = (id: string) => setExpanded((prior) => toggled(prior, id))
+  // Scrolling is not the only way the tail leaves the viewport. An opened panel
+  // grows the list under the reader and a resized drawer shrinks it, and neither
+  // fires a scroll event, so the console would keep claiming to follow a tail it
+  // had already lost.
+  //
+  // A resize can only take the tail away, never hand it back. Scrolling to the
+  // bottom is what returns, and the button says so. Read both ways, the bottom
+  // test would undo the rule below that opening a row leaves the tail, because
+  // the slack it allows is a row tall and so is the panel most rows open.
+  useEffect(() => {
+    const view = scrollRef.current
+    if (!view) return
+
+    const observer = new ResizeObserver(() => {
+      // A list that fits has no tail to lose, and leaving it unfollowed would
+      // strand the button over a console with nothing to scroll.
+      if (overflow(view) < BOTTOM_SLACK_PX) setFollowing(true)
+      else if (!atBottom(view)) setFollowing(false)
+    })
+    observer.observe(view)
+    if (rowsRef.current) observer.observe(rowsRef.current)
+    return () => observer.disconnect()
+  }, [sections])
+
+  // Opening a row is a reader settling on it, and the panel it opens pushes the
+  // rows below out of view. Closing one says nothing either way, so it leaves
+  // the decision where the reader last put it.
+  const toggle = (id: string) => {
+    if (!expanded.has(id)) setFollowing(false)
+    setExpanded((prior) => toggled(prior, id))
+  }
 
   const clearFilters = () => {
     setQuery('')
@@ -182,11 +224,11 @@ export function EventConsole({ timeline }: EventConsoleProps) {
               onClick={clearFilters}
               className="text-[10px] text-slate-500 underline underline-offset-2 hover:text-slate-700"
             >
-              {shown} of {timeline.length}
+              {shown} of {listed}
             </button>
           )}
           <Popover>
-            <Tooltip content="Console settings: what the time column measures, and whether repeated events fold together.">
+            <Tooltip content="Console settings: whether repeated events fold together.">
               <PopoverTrigger asChild>
                 <button
                   aria-label="Console settings"
@@ -197,9 +239,6 @@ export function EventConsole({ timeline }: EventConsoleProps) {
               </PopoverTrigger>
             </Tooltip>
             <PopoverContent className="w-60">
-              <PopoverCheck checked={showGaps} onChange={setShowGaps}>
-                Time column shows the gap
-              </PopoverCheck>
               <PopoverCheck checked={foldRepeats} onChange={setFoldRepeats}>
                 Fold repeated events
               </PopoverCheck>
@@ -216,21 +255,18 @@ export function EventConsole({ timeline }: EventConsoleProps) {
           columns and the rows in separate elements. The table role has to wrap
           both for a cell to find its header. */}
       <div role="table" aria-label="Run events" className="flex min-h-0 flex-1 flex-col">
-        <ColumnHeader gaps={showGaps} />
+        <ColumnHeader />
 
         <div
           ref={scrollRef}
-          onScroll={(event) => {
-            const view = event.currentTarget
-            setFollowing(view.scrollHeight - view.scrollTop - view.clientHeight < 24)
-          }}
+          onScroll={(event) => setFollowing(atBottom(event.currentTarget))}
           className="min-h-0 flex-1 overflow-y-auto px-3 py-1"
         >
           {timeline.length === 0 ? (
             <p className="py-6 text-center text-xs text-slate-500">
               Ask for an edit. Every event that crosses the wire lands here.
             </p>
-          ) : rows.length === 0 ? (
+          ) : sections.length === 0 ? (
             <p className="py-6 text-center text-xs text-slate-500">
               No event matches.{' '}
               <button onClick={clearFilters} className="underline underline-offset-2">
@@ -238,52 +274,57 @@ export function EventConsole({ timeline }: EventConsoleProps) {
               </button>
             </p>
           ) : (
-            <div role="rowgroup">
-              {rows.map((row) =>
-                row.kind === 'group' ? (
-                  <Fragment key={row.id}>
-                    <GroupRow
-                      row={row}
-                      gaps={showGaps}
-                      query={query}
-                      open={expanded.has(row.id)}
-                      onOpen={() => toggle(row.id)}
-                    />
-                    {expanded.has(row.id) &&
-                      row.entries.map((entry) => (
-                        <EventRow
-                          key={entry.id}
-                          entry={entry}
-                          stamp={row.stamps.get(entry.id)}
-                          gaps={showGaps}
+            <div ref={rowsRef}>
+              {sections.map((section) => (
+                // A turn is a group of rows, which is what a row group is for.
+                // It also bounds its own separator, so the heading leaves with
+                // the rows it names instead of collecting at the top.
+                <div role="rowgroup" key={section.id} className="relative">
+                  {section.turn && <TurnSeparator turn={section.turn} />}
+                  {section.rows.map((row) =>
+                    row.kind === 'group' ? (
+                      <Fragment key={row.id}>
+                        <GroupRow
+                          row={row}
                           query={query}
-                          nested
-                          expanded={expanded.has(entry.id)}
-                          onToggle={() => toggle(entry.id)}
+                          open={expanded.has(row.id)}
+                          onOpen={() => toggle(row.id)}
                         />
-                      ))}
-                  </Fragment>
-                ) : (
-                  <EventRow
-                    key={row.entry.id}
-                    entry={row.entry}
-                    stamp={row.stamp}
-                    gaps={showGaps}
-                    query={query}
-                    expanded={expanded.has(row.entry.id)}
-                    onToggle={() => toggle(row.entry.id)}
-                  />
-                ),
-              )}
+                        {expanded.has(row.id) &&
+                          row.entries.map((entry) => (
+                            <EventRow
+                              key={entry.id}
+                              entry={entry}
+                              stamp={row.stamps.get(entry.id)}
+                              query={query}
+                              nested
+                              expanded={expanded.has(entry.id)}
+                              onToggle={() => toggle(entry.id)}
+                            />
+                          ))}
+                      </Fragment>
+                    ) : (
+                      <EventRow
+                        key={row.entry.id}
+                        entry={row.entry}
+                        stamp={row.stamp}
+                        query={query}
+                        expanded={expanded.has(row.entry.id)}
+                        onToggle={() => toggle(row.entry.id)}
+                      />
+                    ),
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </div>
       </div>
 
-      {!following && rows.length > 0 && (
+      {!following && sections.length > 0 && (
         <button
           onClick={() => setFollowing(true)}
-          className="absolute bottom-2 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full border border-slate-300 bg-white/95 px-2.5 py-1 text-[10px] font-medium text-slate-600 shadow-sm transition hover:border-slate-400"
+          className="absolute bottom-2 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full border border-slate-300 bg-white/95 px-2.5 py-1 text-[10px] font-medium text-slate-600 shadow-sm transition hover:border-slate-400"
         >
           <ArrowDown className="size-3" />
           Follow the tail
@@ -294,24 +335,79 @@ export function EventConsole({ timeline }: EventConsoleProps) {
 }
 
 /** Shared by the header and every row, so nothing drifts. */
-const COLUMNS = 'grid grid-cols-[3.75rem_2.25rem_10.5rem_minmax(0,1fr)] items-baseline gap-x-2'
+const COLUMNS =
+  'grid grid-cols-[3.75rem_3.75rem_2.25rem_10.5rem_minmax(0,1fr)] items-baseline gap-x-2'
 
-const NEST = 'ml-[7.75rem]'
+const NEST = 'ml-[12rem]'
 
-function ColumnHeader({ gaps }: { gaps: boolean }) {
+/**
+ * Elapsed and gap answer different questions, and a run being read for where its
+ * time went needs both at once: when this event landed, and what the wait before
+ * it cost. Either one alone leaves the other to be worked out by subtracting
+ * across rows that are rarely adjacent.
+ */
+function ColumnHeader() {
   return (
     <div
       role="row"
       className={`${COLUMNS} shrink-0 border-y border-slate-200 px-3 py-1 text-[9px] font-medium tracking-wide text-slate-600 uppercase`}
     >
-      <span role="columnheader" className="text-right">
-        {gaps ? 'Gap' : 'Time'}
-      </span>
+      <Tooltip content="How far into the run this event landed.">
+        <span role="columnheader" className="text-right">
+          Time
+        </span>
+      </Tooltip>
+      <Tooltip content="The wait this event ended. The rows carrying the largest numbers here are the ones spending the run.">
+        <span role="columnheader" className="text-right">
+          Gap
+        </span>
+      </Tooltip>
       <span role="columnheader">Src</span>
       <span role="columnheader" className="pl-4">
         Event
       </span>
       <span role="columnheader">Detail</span>
+    </div>
+  )
+}
+
+/**
+ * The unit a run is actually organised into, and the one thing the console could
+ * not say. A turn is what costs time: ten seconds spent without the document
+ * changing is the answer to where a run went, and no single row states it.
+ *
+ * The `request sent (turn N)` entry is promoted into this rather than drawn
+ * beside it. That entry is the turn's announcement, so leaving it in the list as
+ * one more monospace row alongside `content_block_stop` was the defect. Its
+ * settings ride along here, which is the only thing lost by promoting it.
+ *
+ * It sticks to the top of its own section, so the turn stays named while its own
+ * rows scroll past and leaves once they have. That matters most in the short
+ * drawer this console usually lives in.
+ */
+function TurnSeparator({ turn }: { turn: Turn }) {
+  return (
+    <div
+      role="row"
+      className="sticky top-0 z-10 -mx-3 border-y border-slate-400 bg-slate-200 px-3 py-0.5 text-[11px] leading-relaxed"
+    >
+      <span role="cell" aria-colspan={5} className="flex items-baseline gap-1.5">
+        <span className="shrink-0 font-medium text-slate-700">turn {turn.number}</span>
+        <span className="shrink-0 font-medium text-slate-700 tabular-nums">
+          · {formatElapsed(turn.spanMs)}
+          {turn.closed ? '' : ' so far'}
+        </span>
+        {(turn.changed || turn.closed) && (
+          <span className="shrink-0 text-slate-700">
+            · {turn.changed ? 'document changed' : 'no document change'}
+          </span>
+        )}
+        {turn.detail && (
+          <Tooltip content={turn.detail}>
+            <span className="min-w-0 truncate text-[10px] text-slate-600">{turn.detail}</span>
+          </Tooltip>
+        )}
+      </span>
     </div>
   )
 }
@@ -330,7 +426,6 @@ const SOURCE_EXPLANATION: Record<TimelineSource, ReactNode> = {
 function EventRow({
   entry,
   stamp,
-  gaps,
   query,
   expanded,
   onToggle,
@@ -338,7 +433,6 @@ function EventRow({
 }: {
   entry: TimelineEntry
   stamp?: Stamp
-  gaps: boolean
   query: string
   expanded: boolean
   onToggle: () => void
@@ -366,7 +460,8 @@ function EventRow({
         onClick={openable ? onToggle : undefined}
         className={`${COLUMNS} py-0.5 ${openable ? 'cursor-pointer hover:bg-slate-100/70' : ''}`}
       >
-        <Clock at={stamp} gaps={gaps} />
+        <Clock at={stamp} />
+        <Gap at={stamp} />
         <Tooltip content={SOURCE_EXPLANATION[entry.source]}>
           <span
             role="cell"
@@ -413,7 +508,7 @@ function EventRow({
         <div role="row">
           <div
             role="cell"
-            aria-colspan={4}
+            aria-colspan={5}
             id={detailId(entry.id)}
             className={`${NEST} mb-1 space-y-1.5 border-l-2 border-slate-200 pl-3`}
           >
@@ -422,8 +517,12 @@ function EventRow({
                 <p className="text-[10px] font-medium text-slate-600">
                   Raw fragment · {entry.raw.length} chars
                 </p>
+                {/* The fragment is printed as the bytes that arrived. It is not
+                    valid JSON yet, and the scanner reads fields out of it
+                    anyway. That is what this panel exists to show, so quoting it
+                    a second time would hide the only thing it has to say. */}
                 <pre className="mt-0.5 rounded border border-slate-200 bg-white px-2 py-1 font-mono text-[10px] leading-relaxed break-all whitespace-pre-wrap text-slate-600">
-                  {JSON.stringify(entry.raw)}
+                  {entry.raw}
                 </pre>
               </div>
             )}
@@ -476,13 +575,11 @@ function Disclosure({
 
 function GroupRow({
   row,
-  gaps,
   query,
   open,
   onOpen,
 }: {
   row: Group
-  gaps: boolean
   query: string
   open?: boolean
   onOpen: () => void
@@ -500,7 +597,8 @@ function GroupRow({
         onClick={onOpen}
         className={`${COLUMNS} cursor-pointer py-0.5 hover:bg-slate-100/70`}
       >
-        <Clock at={row.stamp} gaps={gaps} />
+        <Clock at={row.stamp} />
+        <Gap at={row.stamp} />
         <Tooltip content={SOURCE_EXPLANATION[row.source]}>
           <span
             role="cell"
@@ -558,34 +656,57 @@ function Twisty({ open, shown }: { open?: boolean; shown: boolean }) {
  * An app decision recorded outside the stream carries no elapsed time. Printing
  * the zero it was given would put it back at the start of a run it ended.
  */
-function Clock({ at, gaps }: { at?: Stamp; gaps: boolean }) {
-  if (!at?.stamped) {
-    return (
-      <Tooltip
-        content={
-          <>
-            Recorded without an elapsed time. This decision was made outside the stream, so printing
-            the zero it was given would put it back at the start of a run it ended.
-          </>
-        }
-      >
-        <span role="cell" className="text-right text-slate-600">
-          —
-        </span>
-      </Tooltip>
-    )
-  }
+function Unstamped() {
+  return (
+    <Tooltip
+      content={
+        <>
+          Recorded without an elapsed time. This decision was made outside the stream, so printing
+          the zero it was given would put it back at the start of a run it ended.
+        </>
+      }
+    >
+      <span role="cell" className="text-right text-slate-600">
+        —
+      </span>
+    </Tooltip>
+  )
+}
+
+function Clock({ at }: { at?: Stamp }) {
+  if (!at?.stamped) return <Unstamped />
+
+  return (
+    <Tooltip content={`${formatElapsed(at.atMs)} into the run`}>
+      <span role="cell" className="text-right tabular-nums text-slate-600">
+        {formatElapsed(at.atMs)}
+      </span>
+    </Tooltip>
+  )
+}
+
+/**
+ * A turn's first row has no visible row before it, since the request that opened
+ * the turn is drawn as the separator above. Its gap is still measured from that
+ * request, and that wait is the connection and the model's start-up. Dashing it
+ * out would hide the largest number in a typical run, so it is printed and the
+ * tooltip names what it was measured from.
+ */
+function Gap({ at }: { at?: Stamp }) {
+  if (!at?.stamped) return <Unstamped />
 
   return (
     <Tooltip
       content={
-        gaps
-          ? `${formatElapsed(at.atMs)} into the run`
-          : `${formatGap(at.gapMs)} after the previous event`
+        at.index === 0
+          ? `${formatGap(at.gapMs)} after the run started`
+          : at.afterHead
+            ? `${formatGap(at.gapMs)} after the request that opened this turn`
+            : `${formatGap(at.gapMs)} after the previous event`
       }
     >
       <span role="cell" className="text-right tabular-nums text-slate-600">
-        {gaps ? formatGap(at.gapMs) : formatElapsed(at.atMs)}
+        {formatGap(at.gapMs)}
       </span>
     </Tooltip>
   )
@@ -664,6 +785,11 @@ function Chip({
   )
 }
 
+/**
+ * The mark is violet. Amber is this console's failure colour, on the problems
+ * chip, on a bad row's tint and on its event name, so highlighting matches in
+ * amber painted a search across healthy rows as a run full of problems.
+ */
 function Highlight({ text, query }: { text: string; query: string }) {
   const needle = query.trim().toLowerCase()
   if (!needle) return <>{text}</>
@@ -674,7 +800,7 @@ function Highlight({ text, query }: { text: string; query: string }) {
   for (let found = hay.indexOf(needle); found !== -1; found = hay.indexOf(needle, at)) {
     parts.push(text.slice(at, found))
     parts.push(
-      <mark key={found} className="rounded-xs bg-amber-200 text-slate-800">
+      <mark key={found} className="rounded-xs bg-violet-200 text-violet-950">
         {text.slice(found, found + needle.length)}
       </mark>,
     )
@@ -718,9 +844,10 @@ interface Census {
   problems: number
 }
 
-function tally(timeline: TimelineEntry[]): Census {
+function tally(timeline: TimelineEntry[], heads: ReadonlySet<string>): Census {
   const census: Census = { names: new Map(), sources: { wire: 0, app: 0 }, problems: 0 }
   for (const entry of timeline) {
+    if (heads.has(entry.id)) continue
     const { name } = splitLabel(entry.label)
     census.names.set(name, (census.names.get(name) ?? 0) + 1)
     census.sources[entry.source] += 1
@@ -734,6 +861,8 @@ interface Stamp {
   atMs: number
   gapMs: number
   stamped: boolean
+  /** Whether the wait this row ended began at the request that opened its turn. */
+  afterHead: boolean
 }
 
 interface EntryRow {
@@ -752,10 +881,143 @@ interface Group {
   stamps: Map<string, Stamp>
 }
 
+/**
+ * One turn's rows, under the separator that names it.
+ *
+ * The rows are grouped rather than flattened with a marker between them so that
+ * each separator sticks inside its own turn. Siblings all pinned to the top of
+ * one list would pile up there, and a run of five turns would spend its whole
+ * drawer on five headings, four of them naming turns that had scrolled away.
+ */
+interface Section {
+  id: string
+  turn?: Turn
+  rows: (EntryRow | Group)[]
+}
+
 type ConsoleRow = EntryRow | Group
 
 function single(entry: TimelineEntry, stamps: Map<string, Stamp>): EntryRow {
   return { kind: 'entry', entry, stamp: stamps.get(entry.id) }
+}
+
+/** One row's worth of slack, so resting a row short of the end still counts as the end. */
+const BOTTOM_SLACK_PX = 24
+
+const overflow = (view: HTMLElement) => view.scrollHeight - view.clientHeight
+
+/** The scroller is following the tail when the last row is within a row of it. */
+function atBottom(view: HTMLElement): boolean {
+  return overflow(view) - view.scrollTop < BOTTOM_SLACK_PX
+}
+
+/**
+ * Three labels the console reads as structure rather than as text. The run
+ * writes them in `lib/agent.ts`, and nothing else in the timeline says where a
+ * turn begins, whether the document moved, or whether the run is over.
+ */
+const TURN_HEAD = 'request sent'
+const DOCUMENT_CHANGED = 'tool_result · ok'
+const RUN_END = 'run complete'
+
+interface Turn {
+  /** The id of the `request sent` entry this turn was promoted from. */
+  id: string
+  number: number
+  /** Position of that entry in the full timeline, so rows can be placed against it. */
+  headIndex: number
+  spanMs: number
+  /** Whether an edit was applied. A turn that changed nothing is the run's real cost. */
+  changed: boolean
+  /**
+   * Whether the turn ended. An open turn reports its span so far and withholds
+   * the negative verdict, because the tool result that would settle it arrives
+   * last. A run that was stopped or that failed writes no ending, so its final
+   * turn stays open rather than claiming a close nothing reported.
+   */
+  closed: boolean
+  detail?: string
+}
+
+/**
+ * Reads the turn structure back out of the arrival order. The console is handed
+ * a flat timeline, so a turn is the stretch between one `request sent` and the
+ * next, and its span runs to the last event that carried a time.
+ *
+ * The run clears the timeline before every request, so counting heads gives the
+ * same numbers the labels carry.
+ */
+function planTurns(timeline: TimelineEntry[]): Turn[] {
+  const turns: Turn[] = []
+
+  for (const [index, entry] of timeline.entries()) {
+    if (splitLabel(entry.label).name !== TURN_HEAD) continue
+
+    const turn: Turn = {
+      id: entry.id,
+      number: turns.length + 1,
+      headIndex: index,
+      spanMs: 0,
+      changed: false,
+      closed: false,
+      detail: entry.detail,
+    }
+
+    let endMs = entry.atMs
+    for (let at = index + 1; at < timeline.length; at += 1) {
+      const later = timeline[at]
+      if (splitLabel(later.label).name === TURN_HEAD) {
+        turn.closed = true
+        break
+      }
+      if (later.atMs > 0) endMs = later.atMs
+      if (later.label === DOCUMENT_CHANGED) turn.changed = true
+      if (later.label === RUN_END) turn.closed = true
+    }
+
+    turn.spanMs = endMs - entry.atMs
+    turns.push(turn)
+  }
+
+  return turns
+}
+
+/** Where a row sits in the full timeline, which is what decides its turn. */
+function leadIndex(row: EntryRow | Group, stamps: Map<string, Stamp>): number {
+  const lead = row.kind === 'group' ? row.entries[0] : row.entry
+  return stamps.get(lead.id)?.index ?? 0
+}
+
+/**
+ * Cuts the list into one section per turn.
+ *
+ * A turn whose rows were all filtered out opens no section, so a heading never
+ * announces an empty stretch. Skipping straight to the newest turn that opened
+ * before a row is what does that, and it also keeps the separator honest under
+ * folding, where one row can stand for many.
+ */
+function sectioned(
+  rows: (EntryRow | Group)[],
+  turns: Turn[],
+  stamps: Map<string, Stamp>,
+): Section[] {
+  const sections: Section[] = []
+  let next = 0
+  let current: Section | undefined
+
+  for (const row of rows) {
+    const at = leadIndex(row, stamps)
+    let opened: Turn | undefined
+    while (next < turns.length && turns[next].headIndex <= at) opened = turns[next++]
+
+    if (opened || !current) {
+      current = { id: opened ? `turn-${opened.id}` : 'prelude', turn: opened, rows: [] }
+      sections.push(current)
+    }
+    current.rows.push(row)
+  }
+
+  return sections
 }
 
 /**
@@ -774,8 +1036,8 @@ function adjacent(prior: TimelineEntry, entry: TimelineEntry, stamps: Map<string
   return before !== undefined && after !== undefined && after.index === before.index + 1
 }
 
-function fold(entries: TimelineEntry[], stamps: Map<string, Stamp>): ConsoleRow[] {
-  const rows: ConsoleRow[] = []
+function fold(entries: TimelineEntry[], stamps: Map<string, Stamp>): (EntryRow | Group)[] {
+  const rows: (EntryRow | Group)[] = []
   let run: TimelineEntry[] = []
   let runName = ''
 
