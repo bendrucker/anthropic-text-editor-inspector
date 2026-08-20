@@ -42,6 +42,11 @@ const landedIn = (run: Run) => run.timeToFirstEditMs !== null
  * document after the refusal both touch the paint counter, so `settledMs` is a
  * real reading taken from a document that never showed an edit. Subtracting the
  * target from it would report the restore as the time an edit took to render.
+ *
+ * `editSettledMs` is the settle of the same edit `targetMs` describes, which is
+ * what makes the subtraction a render time. The run-level `settledMs` belongs to
+ * whichever edit landed last, so on a run of two edits it charges the second
+ * edit's model time to rendering the first.
  */
 function spansOf(timing: EditTiming, landed: boolean) {
   const retries = timing.retriesMs ?? 0
@@ -53,7 +58,7 @@ function spansOf(timing: EditTiming, landed: boolean) {
     connect: Math.max(timing.firstByteMs - retries, 0),
     preamble: Math.max(timing.toolStartMs - timing.firstByteMs, 0),
     target: Math.max(timing.targetMs - timing.toolStartMs, 0),
-    render: landed ? Math.max((timing.settledMs ?? timing.targetMs) - timing.targetMs, 0) : 0,
+    render: landed ? Math.max((timing.editSettledMs ?? timing.targetMs) - timing.targetMs, 0) : 0,
   }
 }
 
@@ -213,14 +218,19 @@ function RunBar({ run, timing, scaleMs }: { run: Run; timing: EditTiming; scaleM
  * drawn as bare track for the same reason the tail is.
  */
 function RenderBar({ timing }: { timing: EditTiming }) {
-  const { targetMs, paintMs, settledMs, textPaintMs } = timing
-  if (paintMs === undefined || settledMs === undefined) return null
+  // Every reading here belongs to one edit, so the settle has to be that edit's
+  // too. The run-level one would stretch the window past the edit it describes
+  // and leave the spans drawn inside it summing to a fraction of their own bar.
+  const { targetMs, paintMs, editSettledMs, textPaintMs } = timing
+  if (paintMs === undefined || editSettledMs === undefined) return null
 
-  const window = Math.max(settledMs - targetMs, 1)
+  const window = Math.max(editSettledMs - targetMs, 1)
   const gap = Math.max(paintMs - targetMs, 0)
   const text = textPaintMs ?? null
   const waiting = text === null ? null : Math.max(text - paintMs, 0)
-  const landing = text === null ? null : Math.max(settledMs - text, 0)
+  const landing = text === null ? null : Math.max(editSettledMs - text, 0)
+  // Against the run, which is the bar above. Zooming against the edit's own
+  // settle would make every run report the same magnification.
   const zoom = Math.max(Math.round(extentOf(timing) / window), 1)
 
   return (
@@ -282,7 +292,7 @@ function headline(timing: EditTiming, landed: boolean): string {
   const spans = spansOf(timing, landed)
   const rendered = !landed
     ? 'No edit landed'
-    : timing.textPaintMs !== undefined && timing.settledMs === timing.textPaintMs
+    : timing.textPaintMs !== undefined && timing.editSettledMs === timing.textPaintMs
       ? 'Rendered in one frame'
       : `Rendered in ${brief(spans.render)}`
   return `${rendered} after ${secs(timing.targetMs)} of model and network`

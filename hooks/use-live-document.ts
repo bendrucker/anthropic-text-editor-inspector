@@ -213,6 +213,9 @@ export function useLiveDocument() {
    */
   const paintClock = useRef<(at: number) => number>(() => 0)
   const paintFrames = useRef<PaintCounter | null>(null)
+  // When the first edit of the run finished landing. Held next to the counter
+  // it is read from, and reset with it, because the two are one reading.
+  const editSettle = useRef<number | null>(null)
 
   // Read once on mount. The Keychain answers asynchronously, so a stale reply
   // after the user has already typed a key would otherwise overwrite it.
@@ -335,6 +338,24 @@ export function useLiveDocument() {
     (at: number | null | undefined) => (at == null ? null : paintClock.current(at)),
     [],
   )
+
+  /**
+   * Latches the settle of the run's first edit. Call from inside a paint.
+   *
+   * Both commit paths end here, so the reading means the same thing whether the
+   * edit streamed or was replaced whole. It comes off the paint counter rather
+   * than off the calling frame's own timestamp, because `paintMs` comes off that
+   * counter too, and the two subtract to a render time only while both are on
+   * the same clock. A frame that reports itself is a frame or two later than the
+   * mutation it carried.
+   *
+   * First rather than last: `targetMs` describes the first edit to commit, and a
+   * settle from any other one would put the two endpoints on different edits.
+   */
+  const settleFirstEdit = useCallback(() => {
+    const atMs = paintedAt(paintFrames.current?.read().lastAtMs)
+    if (atMs !== null) editSettle.current ??= atMs
+  }, [paintedAt])
 
   /** Opens a hole at the target so replacement characters have somewhere to land. */
   const beginEdit = useCallback(
@@ -483,11 +504,12 @@ export function useLiveDocument() {
           detail: `${countOf(committed, 'edit')} replaced whole on commit, so ${atMs}ms is the first moment any of them was visible.`,
           tone: 'good',
         }))
+        afterPaint(settleFirstEdit)
       }
 
       reconcile(document)
     },
-    [commitEdit, recordPaint, reconcile],
+    [commitEdit, recordPaint, reconcile, settleFirstEdit],
   )
 
   // Unblocks the UI right away. The controller stays in `abortRef` so the run's
@@ -525,6 +547,7 @@ export function useLiveDocument() {
       const replayOrigin = performance.now()
       paintClock.current = (at) => Math.round((at - replayOrigin) * speed)
       paintFrames.current = countPaintFrames()
+      editSettle.current = null
       // Rewind the conversation to the prompt this run answered. Replaying into
       // the replies it already produced would append the text a second time.
       setConversation((prior) => {
@@ -737,6 +760,7 @@ export function useLiveDocument() {
           // are already there. The frame the last of them landed in is the
           // settle, so this reads the counter rather than timing its own call.
           afterPaint(() => {
+            settleFirstEdit()
             const atMs = paintedAt(paintFrames.current?.read().lastAtMs)
             if (atMs === null) return
             record({
@@ -855,6 +879,10 @@ export function useLiveDocument() {
                   ...attempted,
                   ...(paintMs === null ? {} : { paintMs }),
                   ...(textPaintMs === null ? {} : { textPaintMs }),
+                  // Only a commit writes this, so a refused run carries none and
+                  // the borrowed spans it does carry never gain a settle they
+                  // did not earn.
+                  ...(editSettle.current === null ? {} : { editSettledMs: editSettle.current }),
                   ...(settledMs === null ? {} : { settledMs }),
                   totalMs: event.elapsedMs,
                 },
@@ -874,6 +902,7 @@ export function useLiveDocument() {
       const startedAt = performance.now()
       paintClock.current = (at) => Math.round(at - startedAt)
       paintFrames.current = countPaintFrames()
+      editSettle.current = null
 
       try {
         await runEdit({
