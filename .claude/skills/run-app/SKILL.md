@@ -1,0 +1,72 @@
+---
+name: run-app
+description: Start this app's dev server, drive it in a real browser, and run the repo's verification commands. Use when running, screenshotting, or QAing the app, confirming a change works in the running UI, driving a live API run, or measuring rendered styles such as color contrast. Covers the sandbox, port, browser-session, and worktree failures that look like something else.
+---
+
+# Running and verifying this app
+
+## Verification commands
+
+| Command | Checks |
+| --- | --- |
+| `bun run typecheck` | `tsc --noEmit` |
+| `bun run roundtrip` | Markdown serializer is a fixed point, and lead prompts resolve to the inline path. Fails on content drift, not just code changes. |
+| `bun run conversation` | Conversation fixtures |
+
+## Fresh worktree
+
+- `bun install --frozen-lockfile`.
+- `.env.local` is gitignored and is **not** copied into a new worktree. If it is missing, copy it from the primary checkout. Without it the app asks for a pasted key.
+- Confirm the base is current: `git merge-base --is-ancestor origin/main HEAD`. `wt switch --create <name> -y` cuts from *local* `main`, even when the same invocation fetched.
+- Subagents: do not invoke the `worktrunk:wt-switch-create` skill. It re-roots the shared session's working directory and breaks the parent.
+
+## Dev server
+
+Start it with **`dangerouslyDisableSandbox: true`** and `run_in_background: true`:
+
+```
+bun run dev --port <port> --strictPort
+```
+
+- Pick a port yourself. Many dev servers run concurrently here.
+- `--strictPort` is required. Without it vite silently takes the next free port and you drive the wrong app.
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| App shows 502 from `/anthropic`; server log has `getaddrinfo ENOTFOUND api.anthropic.com` | Server started inside the Bash sandbox. The host is allowlisted, so this reads as a network outage, not a restriction. | Restart with `dangerouslyDisableSandbox: true`. |
+| `--strictPort` exits, port in use | Often your own earlier vite, left alive by a `pkill` that did not match | `lsof -ti tcp:<port>`, kill that pid, retry |
+
+## API key
+
+`ANTHROPIC_API_KEY` in `.env.local` is injected by the dev-server proxy. The bundle receives only a boolean saying a key exists. Live runs need no key of your own and no paste into the UI.
+
+## Browser (agent-browser)
+
+`agent-browser session id --scope worktree` derives the id from the process cwd, and the Bash tool's cwd resets to the primary repo between calls. Agents in different worktrees therefore compute the same id and share one tab — the tab silently follows whichever agent drove it last.
+
+Compute the id **once** with an explicit `--prefix`, persist it, and re-export the literal on every call:
+
+```
+agent-browser session id --scope worktree --prefix <branch> > tmp/browser-session
+export AGENT_BROWSER_SESSION="$(cat /abs/path/to/tmp/browser-session)"
+```
+
+Before trusting any snapshot, run `agent-browser get url` and confirm the port is yours.
+
+## Measuring rendered color
+
+Tailwind v4 emits `oklch()`, and `getComputedStyle(el).color` returns that string unchanged. A script parsing it with an `rgb()` regex matches nothing and reports a near-zero failure count for the whole app. This is how Tailwind v4 works, not a bug to wait out.
+
+Read sRGB by rasterizing instead: assign the computed string to `ctx.fillStyle` on a 1×1 canvas, `fillRect`, and read `getImageData`. For the background, walk ancestors converting each `backgroundColor` the same way until one is opaque, compositing by alpha.
+
+## Removing this skill
+
+| Section | Removable when | Where that shows |
+| --- | --- | --- |
+| Dev server sandbox | Sandboxed Bash resolves allowlisted hosts for spawned servers | A sandboxed `bun run dev` completes a live run with no `ENOTFOUND` |
+| Browser session pinning | `agent-browser session id` stops keying on process cwd, or the Bash cwd stops resetting | Two agents in different worktrees compute different ids |
+| `.env.local`, stale base | Worktree creation copies gitignored env files and cuts from the fetched remote head | A fresh `wt switch --create` worktree has `.env.local` and passes the `merge-base` check |
+| `oklch()` | Never. It is a property of Tailwind v4's output. | — |
+| Verification commands, ports, API key | Never. Project facts. | — |
+
+The stale-base and subagent-reroot lines belong in `worktrunk:wt-switch-create`. Delete them here if they land there.
