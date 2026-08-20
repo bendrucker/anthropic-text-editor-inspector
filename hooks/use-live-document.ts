@@ -45,14 +45,25 @@ export interface EditRecord {
   before: string
 }
 
+/** A call whose arguments are still entirely unknown. */
+function blankEdit(id: string, before: string): EditRecord {
+  return {
+    id,
+    before,
+    status: 'buffering',
+    oldStr: '',
+    oldStrComplete: false,
+    newStr: '',
+    newStrComplete: false,
+  }
+}
+
 /**
  * The conversation, in the order it arrived.
  *
- * A tool call is an item of its own rather than a list beside the messages,
- * because that is where it happened: the API delivers a turn as ordered content
- * blocks, and text before an edit and text after it are separate blocks with the
- * call between them. Rendering messages and edits as two lists loses which
- * request caused which edit as soon as a second turn starts.
+ * A tool call is an item of its own because that is where it happened: the API
+ * delivers a turn as ordered content blocks, and text before an edit and text
+ * after it are separate blocks with the call between them.
  */
 export type ConversationItem =
   | { kind: 'prompt'; id: string; text: string }
@@ -85,8 +96,7 @@ export interface Run {
  *
  * `summary` is why the path was taken and `during` is what that means for the
  * document while the call is still open, which is the whole answer to "why is
- * nothing moving". The run inspector's timeline and the edit card both read
- * from here, so a run cannot describe a path one way and the card another.
+ * nothing moving".
  */
 export const APPLY_PATHS: Record<ApplyPath, { label: string; summary: string; during: string }> = {
   inline: {
@@ -217,14 +227,23 @@ export function useLiveDocument() {
   const itemSequence = useRef(0)
   const nextItemId = useCallback(() => `item-${itemSequence.current++}`, [])
 
-  const changeEdit = useCallback((id: string, change: Partial<EditRecord>) => {
-    setConversation((prior) =>
-      prior.map((item) =>
+  /**
+   * Changes one card. `seed` creates it when the call never reached `onBuffer`:
+   * a tool block that streams no input fragments at all is rejected on sight,
+   * and the rejection would otherwise land on a card nobody made.
+   */
+  const changeEdit = useCallback((id: string, change: Partial<EditRecord>, seed?: EditRecord) => {
+    setConversation((prior) => {
+      const known = prior.some((item) => item.kind === 'edit' && item.edit.id === id)
+      if (!known) {
+        return seed ? [...prior, { kind: 'edit', id, edit: { ...seed, ...change } }] : prior
+      }
+      return prior.map((item) =>
         item.kind === 'edit' && item.edit.id === id
           ? { ...item, edit: { ...item.edit, ...change } }
           : item,
-      ),
-    )
+      )
+    })
   }, [])
 
   /** App decisions, interleaved with wire events so the mapping between them reads. */
@@ -383,11 +402,18 @@ export function useLiveDocument() {
 
       const controller = new AbortController()
       abortRef.current = controller
+      // Whether this run is still the one the app belongs to. Stop leaves the
+      // controller in place, so a stopped run keeps its claim until either a
+      // newer prompt or `open` takes it.
+      const current = () => abortRef.current === controller
 
       // Held locally because handlers run before state settles.
       let firstEditMs: number | null = null
       let firstTiming: EditTiming | null = null
       let turnHistory: ConversationTurn[] | null = null
+      // Which cards this run put on screen, so its cleanup can settle its own
+      // without reaching into a run that started after it.
+      const ownEdits = new Set<string>()
 
       const handlers: AgentHandlers = {
         onEvent(entry) {
@@ -395,13 +421,14 @@ export function useLiveDocument() {
         },
 
         /**
-         * The card appears here rather than at `onEditStart`, which is the
-         * point of it. Between the tool block opening and `old_str` closing the
-         * app knows a call is under way and knows how much of it has arrived,
-         * and that stretch used to show nothing at all.
+         * Creates the card, on the first fragment of the call. Between the tool
+         * block opening and `old_str` closing, how much has arrived is the only
+         * thing known about the edit, and on the `block` and `document` paths
+         * the document itself does not move until commit.
          */
         onBuffer(state) {
           setBuffer(state)
+          ownEdits.add(state.toolUseId)
           const scanned = {
             oldStr: state.oldStr ?? '',
             oldStrComplete: state.oldStrComplete,
@@ -424,7 +451,7 @@ export function useLiveDocument() {
               {
                 kind: 'edit',
                 id: state.toolUseId,
-                edit: { id: state.toolUseId, status: 'buffering', before: snapshot, ...scanned },
+                edit: { ...blankEdit(state.toolUseId, snapshot), ...scanned },
               },
             ]
           })
@@ -493,13 +520,18 @@ export function useLiveDocument() {
                 : 'The hole opened for this edit is closed again.',
             tone: 'bad',
           })
-          changeEdit(event.id, {
-            status: 'rejected',
-            message: event.message,
-            // Empty when the input never became valid JSON, where the buffer
-            // the scanner already holds is the only account of what arrived.
-            ...(event.oldStr ? { oldStr: event.oldStr } : {}),
-          })
+          ownEdits.add(event.id)
+          changeEdit(
+            event.id,
+            {
+              status: 'rejected',
+              message: event.message,
+              // Empty when the input never became valid JSON, where the buffer
+              // the scanner already holds is the only account of what arrived.
+              ...(event.oldStr ? { oldStr: event.oldStr } : {}),
+            },
+            blankEdit(event.id, snapshot),
+          )
           // The hole opened for a rejected edit has to be closed again.
           editor.commands.setContent(parse(event.document), { emitUpdate: false })
           streams.current.delete(event.id)
@@ -548,30 +580,32 @@ export function useLiveDocument() {
           ),
         })
       } catch (cause) {
-        if ((cause as Error).name !== 'AbortError') {
+        if (current() && (cause as Error).name !== 'AbortError') {
           setError(describeFailure(cause))
         }
       } finally {
-        // Stop lets this run's promise settle on its own, so the user can send
-        // a new prompt before this block runs. The controller identifies the
-        // run: once a newer one owns `abortRef`, this cleanup would be undoing
-        // that run's setup and marking its live edit as never finished.
-        if (abortRef.current === controller) {
+        // A stop, an error, or a turn that hit max_tokens mid-call leaves a tool
+        // call with no result. Its card would otherwise pulse forever. This runs
+        // even for a superseded run, because those cards are the ones nothing
+        // else will ever settle.
+        setConversation((prior) =>
+          prior.map((item) =>
+            item.kind === 'edit' && ownEdits.has(item.edit.id) && !isSettled(item.edit)
+              ? { ...item, edit: { ...item.edit, status: 'incomplete' } }
+              : item,
+          ),
+        )
+
+        // Everything below is one-per-app rather than one-per-run. Stop lets
+        // this run's promise settle on its own, so a newer run can already own
+        // the editor and the controller by now, and this cleanup would undo it.
+        if (current()) {
           if (turnHistory) history.current = turnHistory
           recording.current = { calls, handlers, snapshot, promptId }
           setRecorded(calls.length > 0)
           setRunning(false)
           abortRef.current = null
           editor.setEditable(true)
-          // A stop, an error, or a turn that hit max_tokens mid-call leaves a
-          // tool call with no result. Its card would otherwise pulse forever.
-          setConversation((prior) =>
-            prior.map((item) =>
-              item.kind === 'edit' && !isSettled(item.edit)
-                ? { ...item, edit: { ...item.edit, status: 'incomplete' } }
-                : item,
-            ),
-          )
         }
       }
     },
@@ -597,8 +631,7 @@ export function useLiveDocument() {
   )
   /**
    * Restores the document to the snapshot taken before the edit's run. The card
-   * stays and is marked instead of being removed: the model did make the call,
-   * and dropping it out of the transcript would misreport the conversation.
+   * stays and is marked, since the model did make the call.
    */
   const revert = useCallback(
     (edit: EditRecord) => {
@@ -623,6 +656,12 @@ export function useLiveDocument() {
   const open = useCallback(
     (next: LibraryDocument) => {
       if (running) return
+
+      // A stopped run holds its controller until its promise settles, and its
+      // cleanup would write the previous document's recording back over this
+      // one. Dropping the controller here is what tells it to stand down.
+      abortRef.current?.abort()
+      abortRef.current = null
 
       cancelReplay()
       streams.current.clear()

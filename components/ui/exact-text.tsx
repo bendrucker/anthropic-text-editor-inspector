@@ -1,9 +1,9 @@
 import { StreamCaret } from './activity'
 
 /**
- * Renders a tool string the way the matcher sees it. Collapsing whitespace here
- * would hide the exact thing `old_str` matching turns on, so runs of spaces and
- * line breaks are marked rather than normalized.
+ * Renders a tool string the way the matcher sees it. Runs of spaces, tabs, and
+ * line breaks are marked, since collapsing them would hide the exact thing
+ * `old_str` matching turns on.
  */
 export function ExactText({
   text,

@@ -59,8 +59,13 @@ export function ChatPane({
     streaming && (!tail || tail.kind === 'prompt' || (tail.kind === 'edit' && isSettled(tail.edit)))
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
-  }, [conversation, pending])
+    scrollRef.current?.scrollTo({
+      top: scrollRef.current.scrollHeight,
+      // Every fragment grows the tail card, and a smooth scroll restarted a few
+      // hundred times never arrives anywhere. Follow instantly while it streams.
+      behavior: streaming ? 'auto' : 'smooth',
+    })
+  }, [conversation, pending, streaming])
 
   const submit = () => {
     if (!draft.trim() || running || !hasKey) return
@@ -190,7 +195,6 @@ export function ChatPane({
   )
 }
 
-/** The wait before anything is known, named so it does not read as a stall. */
 function Pending({ afterEdit, replaying }: { afterEdit: boolean; replaying: boolean }) {
   return (
     <div className="flex items-start gap-2 rounded-lg border border-dashed border-slate-200 px-3 py-2 text-xs">
@@ -231,11 +235,9 @@ const STATUS_LABELS: Record<EditRecord['status'], string> = {
 /**
  * One tool call, in the place it happened.
  *
- * The card carries the call's meaning and the run inspector keeps its bytes.
- * So `old_str` and `new_str` appear here as the matcher will read them, with
- * whichever one is still open marked as such, and the raw buffer, the fragment
- * payloads, and the event timings stay in the inspector. Repeating those here
- * would make the conversation a second, worse inspector.
+ * `old_str` and `new_str` appear as the matcher will read them, with whichever
+ * one is still open marked as such. The raw buffer, the fragment payloads, and
+ * the event timings are the run inspector's, not this card's.
  */
 function EditCard({ edit, onRevert }: { edit: EditRecord; onRevert: (edit: EditRecord) => void }) {
   const path = edit.applyPath ? APPLY_PATHS[edit.applyPath] : null
@@ -293,12 +295,13 @@ function EditCard({ edit, onRevert }: { edit: EditRecord; onRevert: (edit: EditR
           <p className="leading-relaxed text-slate-500">
             {edit.status === 'buffering' ? (
               <>
-                <span className="font-mono">old_str</span> is declared first, so it arrives first.
-                Nothing can be located from a prefix of it.
+                Nothing can be located from a prefix of{' '}
+                <span className="font-mono">old_str</span>, so the document holds still until it
+                closes. Which field arrives first is the schema's key order.
               </>
             ) : (
               (path?.during ??
-                'No unique match in the document. The tool result will say so and the model retries.')
+                'No unique match in the document this app holds, so nothing streams. An earlier structural edit in the same run does not land until commit, so the match may still succeed there.')
             )}
           </p>
         </div>
@@ -313,8 +316,11 @@ function EditCard({ edit, onRevert }: { edit: EditRecord; onRevert: (edit: EditR
               The turn ended before this call produced a result, so nothing was applied.
             </p>
           )}
-          {edit.status === 'applied' && path && (
-            <p className="pt-0.5 text-[11px] leading-relaxed text-slate-400">{path.summary}</p>
+          {edit.status === 'applied' && (
+            <p className="pt-0.5 text-[11px] leading-relaxed text-slate-400">
+              {path?.summary ??
+                'Applied on commit. This app could not locate the target while the call was open, so which path ran is unknown.'}
+            </p>
           )}
         </div>
       )}
@@ -357,9 +363,8 @@ const PATH_ICONS: Record<ApplyPath, typeof TextCursor> = {
 }
 
 /**
- * Which of the three mechanisms ran, said rather than hinted. The distinction is
- * the lesson, so the sentence sits next to the badge instead of inside a `title`
- * a touch device never shows.
+ * Which of the three mechanisms ran. The explanation sits next to the badge
+ * rather than in a `title`, which a touch device never shows.
  */
 function ApplyPathBadge({ path }: { path: ApplyPath }) {
   const Icon = PATH_ICONS[path]
