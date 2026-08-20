@@ -18,6 +18,12 @@ jobs:
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
 
+      # The tag names the release and package.json labels the bundle, and
+      # nothing reconciles the two. Checked before the build so a mislabelled
+      # DMG is never produced rather than caught after it is signed.
+      - name: Versions agree
+        run: bun run versions
+
       # One universal DMG covers both architectures, so nobody has to know
       # which Mac they have.
       #
