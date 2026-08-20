@@ -9,6 +9,10 @@ headers stripped, and the Tauri desktop build issues the request from Rust.
 `lib/endpoint.ts` decides which path a given build takes, and `lib/api-key.ts`
 picks `localStorage` or the Keychain to match.
 
+A dev server started with `ANTHROPIC_API_KEY` set attaches the key in the proxy
+hop. The bundle gets a boolean saying a key exists, never the key, and
+`lib/api-key.ts` swaps in a store that sends a placeholder the proxy overwrites.
+
 - `bun run dev` — dev server
 - `bun run build` — static `dist/`, deployable to any static host
 - `bun run build:single` — everything inlined into one `dist/index.html`
