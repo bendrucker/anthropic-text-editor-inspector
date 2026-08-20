@@ -4,7 +4,7 @@
 
 **[Open Web App](https://bendrucker.github.io/anthropic-text-editor-inspector/)**
 
-![The inspector after a finished run: the edited document, the event console, and the tool input buffer](docs/screenshot.png)
+![The inspector after a finished run: the edited document, the event console grouped by turn, and the run history](docs/screenshot.png)
 
 ## Getting Started
 
@@ -43,7 +43,7 @@ sequenceDiagram
 
 ## Observability
 
-- **Run inspector:** interleaves wire events and this app's decisions in one console, always in arrival order, since the interleaving is what there is to read. A text filter marks its matches, chips mute a source or an event type, and a settings popover swaps the time column for gaps or folds repeated events into one row.
+- **Run inspector:** interleaves wire events and this app's decisions in one console, always in arrival order, since the interleaving is what there is to read. A text filter marks its matches, chips mute a source or an event type, a Gap column carries the wait before each event, and a settings popover folds repeated events into one row.
 - **Input buffer:** shows tool input as one growing string, with `old_str` and `new_str` extracted live and labeled *not started*, *streaming*, or *closed*.
 - **Matcher:** runs the real matching code against the live document with no model or API key.
 - **Runs:** time to first edit for every finished run, split into connect, preamble, and target, so two configurations can be compared rather than described.
