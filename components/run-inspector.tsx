@@ -111,13 +111,21 @@ export function RunInspector({
         // added makes the tall case worse.
         <div
           id="run-inspector-panels"
-          // Both panes have a floor: the console's toolbar sets one around 490px
-          // and the panel column is 340px, so under about 830px they no longer
-          // fit side by side. `hidden` cut the panel off at its right edge with
-          // nothing to say so, and focusing a tab inside it scrolled the console
-          // away with no way to scroll back. Narrowing the panel instead would
-          // buy the width from the console's Detail column, which is the one
-          // that has to stay readable.
+          // The console's event grid costs 380px before Detail gets a pixel:
+          // four fixed columns, the four gaps between them and the row padding.
+          // Detail is `minmax(0,1fr)` on top of that, so it has no floor of its
+          // own and truncates by design, with the full text one click into the
+          // expansion panel.
+          //
+          // That makes side by side arithmetic rather than a matter of how wide
+          // this panel is. At a 650px viewport even a 260px panel would leave
+          // Detail about 10px. 340px is what the panel's own tabs read well at,
+          // and narrowing it moves the width where both fit by a viewport or
+          // two without changing the outcome.
+          //
+          // So the pair scrolls once it stops fitting. `hidden` cut the panel
+          // off at its right edge with nothing to say so, and focusing a tab
+          // inside it scrolled the console away with no way to scroll back.
           className="grid h-[clamp(18rem,34vh,32.5rem)] grid-cols-[1fr_340px] overflow-x-auto overflow-y-hidden border-t border-slate-200"
         >
           <EventConsole timeline={timeline} />
