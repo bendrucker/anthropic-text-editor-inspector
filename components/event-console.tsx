@@ -40,7 +40,22 @@ export function EventConsole({ timeline }: EventConsoleProps) {
 
   const census = useMemo(() => tally(timeline), [timeline])
 
-  const rows = useMemo(() => {
+  // Timings come off the full timeline, so a filtered row still reports the
+  // wait that actually preceded it. A gap is measured from the last event that
+  // carried a real time, because an entry recorded without one would otherwise
+  // charge the whole run so far to whatever followed it.
+  const stamps = useMemo(() => {
+    const map = new Map<string, Stamp>()
+    let previous = 0
+    for (const [index, entry] of timeline.entries()) {
+      const stamped = index === 0 || entry.atMs > 0
+      map.set(entry.id, { index, atMs: entry.atMs, gapMs: entry.atMs - previous, stamped })
+      if (stamped) previous = entry.atMs
+    }
+    return map
+  }, [timeline])
+
+  const { rows, shown } = useMemo(() => {
     const needle = query.trim().toLowerCase()
     const kept = timeline.filter((entry) => {
       if (mutedSources.has(entry.source)) return false
@@ -49,22 +64,12 @@ export function EventConsole({ timeline }: EventConsoleProps) {
       return needle === '' || haystack(entry).includes(needle)
     })
 
-    // Timings come off the full timeline, so a filtered row still reports the
-    // wait that actually preceded it.
-    const stamps = new Map<string, Stamp>()
-    for (const [index, entry] of timeline.entries()) {
-      stamps.set(entry.id, {
-        index,
-        atMs: entry.atMs,
-        gapMs: entry.atMs - (timeline[index - 1]?.atMs ?? 0),
-        stamped: index === 0 || entry.atMs > 0,
-      })
+    return {
+      rows: foldRepeats ? fold(kept, stamps) : kept.map((entry) => single(entry, stamps)),
+      shown: kept.length,
     }
+  }, [timeline, stamps, query, mutedSources, mutedNames, problemsOnly, foldRepeats])
 
-    return foldRepeats ? fold(kept, stamps) : kept.map((entry) => single(entry, stamps))
-  }, [timeline, query, mutedSources, mutedNames, problemsOnly, foldRepeats])
-
-  const shown = rows.reduce((count, row) => count + (row.kind === 'group' ? row.entries.length : 1), 0)
   const filtered = shown !== timeline.length
 
   // A console follows the tail until you scroll away from it, and picks the
@@ -75,12 +80,7 @@ export function EventConsole({ timeline }: EventConsoleProps) {
     if (following && view) view.scrollTo({ top: view.scrollHeight })
   }, [rows, following])
 
-  const toggle = (id: string) =>
-    setExpanded((prior) => {
-      const next = new Set(prior)
-      if (!next.delete(id)) next.add(id)
-      return next
-    })
+  const toggle = (id: string) => setExpanded((prior) => toggled(prior, id))
 
   const clearFilters = () => {
     setQuery('')
@@ -143,7 +143,9 @@ export function EventConsole({ timeline }: EventConsoleProps) {
           </PopoverContent>
         </Popover>
 
-        {census.problems > 0 && (
+        {/* Kept while the filter is on even at a count of zero, so a clean run
+            cannot hide the control that is emptying the console. */}
+        {(census.problems > 0 || problemsOnly) && (
           <Chip
             active={problemsOnly}
             tone="problem"
@@ -213,23 +215,28 @@ export function EventConsole({ timeline }: EventConsoleProps) {
         ) : (
           <ol>
             {rows.map((row) =>
-              row.kind === 'group' && !expanded.has(row.id) ? (
-                <GroupRow key={row.id} row={row} gaps={showGaps} query={query} onOpen={() => toggle(row.id)} />
-              ) : row.kind === 'group' ? (
+              row.kind === 'group' ? (
                 <Fragment key={row.id}>
-                  <GroupRow row={row} gaps={showGaps} query={query} open onOpen={() => toggle(row.id)} />
-                  {row.entries.map((entry) => (
-                    <EventRow
-                      key={entry.id}
-                      entry={entry}
-                      stamp={row.stamps.get(entry.id)}
-                      gaps={showGaps}
-                      query={query}
-                      nested
-                      expanded={expanded.has(entry.id)}
-                      onToggle={() => toggle(entry.id)}
-                    />
-                  ))}
+                  <GroupRow
+                    row={row}
+                    gaps={showGaps}
+                    query={query}
+                    open={expanded.has(row.id)}
+                    onOpen={() => toggle(row.id)}
+                  />
+                  {expanded.has(row.id) &&
+                    row.entries.map((entry) => (
+                      <EventRow
+                        key={entry.id}
+                        entry={entry}
+                        stamp={row.stamps.get(entry.id)}
+                        gaps={showGaps}
+                        query={query}
+                        nested
+                        expanded={expanded.has(entry.id)}
+                        onToggle={() => toggle(entry.id)}
+                      />
+                    ))}
                 </Fragment>
               ) : (
                 <EventRow
@@ -318,6 +325,7 @@ function EventRow({
       <div
         role={openable ? 'button' : undefined}
         tabIndex={openable ? 0 : undefined}
+        aria-expanded={openable ? expanded : undefined}
         onClick={openable ? onToggle : undefined}
         onKeyDown={(event) => {
           if (!openable) return
@@ -409,6 +417,7 @@ function GroupRow({
       <div
         role="button"
         tabIndex={0}
+        aria-expanded={Boolean(open)}
         onClick={onOpen}
         onKeyDown={(event) => {
           if (event.key === 'Enter' || event.key === ' ') {
@@ -442,7 +451,7 @@ function GroupRow({
               {JSON.stringify(joined)}
             </span>
           )}
-          <span className="shrink-0">over {(spanMs / 1000).toFixed(2)}s</span>
+          <span className="shrink-0">over {formatElapsed(spanMs)}</span>
         </span>
       </div>
     </li>
@@ -479,17 +488,23 @@ function Clock({ at, gaps }: { at?: Stamp; gaps: boolean }) {
     <span
       className="text-right tabular-nums text-slate-400"
       title={
-        gaps ? `${(at.atMs / 1000).toFixed(2)}s into the run` : `${formatGap(at.gapMs)} after the previous event`
+        gaps
+          ? `${formatElapsed(at.atMs)} into the run`
+          : `${formatGap(at.gapMs)} after the previous event`
       }
     >
-      {gaps ? formatGap(at.gapMs) : `${(at.atMs / 1000).toFixed(2)}s`}
+      {gaps ? formatGap(at.gapMs) : formatElapsed(at.atMs)}
     </span>
   )
 }
 
+function formatElapsed(ms: number): string {
+  return `${(ms / 1000).toFixed(2)}s`
+}
+
 function formatGap(ms: number): string {
   if (ms < 0) return '—'
-  return ms < 1000 ? `+${Math.round(ms)}ms` : `+${(ms / 1000).toFixed(2)}s`
+  return ms < 1000 ? `+${Math.round(ms)}ms` : `+${formatElapsed(ms)}`
 }
 
 function FilterBox({ value, onChange }: { value: string; onChange: (next: string) => void }) {
@@ -662,6 +677,7 @@ function adjacent(prior: TimelineEntry, entry: TimelineEntry, stamps: Map<string
 function fold(entries: TimelineEntry[], stamps: Map<string, Stamp>): ConsoleRow[] {
   const rows: ConsoleRow[] = []
   let run: TimelineEntry[] = []
+  let runName = ''
 
   const flush = () => {
     if (run.length === 0) return
@@ -671,7 +687,7 @@ function fold(entries: TimelineEntry[], stamps: Map<string, Stamp>): ConsoleRow[
       rows.push({
         kind: 'group',
         id: `group-${lead.id}`,
-        name: splitLabel(lead.label).name,
+        name: runName,
         source: lead.source,
         entries: run,
         stamp: stamps.get(lead.id),
@@ -681,16 +697,18 @@ function fold(entries: TimelineEntry[], stamps: Map<string, Stamp>): ConsoleRow[
   }
 
   for (const entry of entries) {
+    const name = splitLabel(entry.label).name
     const prior = run[run.length - 1]
     const same =
       prior !== undefined &&
       prior.source === entry.source &&
-      splitLabel(prior.label).name === splitLabel(entry.label).name &&
+      runName === name &&
       entry.tone !== 'bad' &&
       prior.tone !== 'bad' &&
       adjacent(prior, entry, stamps)
     if (!same) flush()
     run.push(entry)
+    runName = name
   }
   flush()
 
