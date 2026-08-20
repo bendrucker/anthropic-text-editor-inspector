@@ -12,10 +12,13 @@ export function ApiKeyControl(props: ApiKeyControlProps) {
   return keyStore.editable ? <KeyPopover {...props} /> : <EnvironmentKeyBadge />
 }
 
-/** Nothing to enter or clear, so the badge only says where the key came from. */
+/**
+ * Nothing to enter or clear here, so the badge says where the key came from and
+ * where the user has to go to change it, since this is not that place.
+ */
 function EnvironmentKeyBadge() {
   return (
-    <Tooltip content={keyStore.description}>
+    <Tooltip content={`${keyStore.description} ${keyStore.change}`}>
       <span
         tabIndex={0}
         className="rounded-md border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-500"

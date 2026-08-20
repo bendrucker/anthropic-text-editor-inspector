@@ -25,6 +25,12 @@ export interface KeyStore {
    * paste or remove.
    */
   readonly editable: boolean
+  /**
+   * How the user replaces this key, which is not the same everywhere. A store
+   * that is not `editable` has no control to point at, so anything that tells
+   * the user to fix their key has to ask here rather than assume one.
+   */
+  readonly change: string
 }
 
 const browserKeyStore: KeyStore = {
@@ -55,6 +61,7 @@ const browserKeyStore: KeyStore = {
       ? 'Stored in this browser only, and sent only to api.anthropic.com.'
       : 'Stored in this browser only, and sent to the API through this build\'s own proxy.',
   editable: true,
+  change: 'Open the key control and paste another one.',
 }
 
 const keychainKeyStore: KeyStore = {
@@ -69,6 +76,7 @@ const keychainKeyStore: KeyStore = {
   },
   description: 'Stored in your Keychain, and sent only to api.anthropic.com.',
   editable: true,
+  change: 'Open the key control and paste another one.',
 }
 
 /**
@@ -91,6 +99,7 @@ const devServerKeyStore: KeyStore = {
   async clear() {},
   description: 'Supplied by the dev server from ANTHROPIC_API_KEY. The key never reaches the browser.',
   editable: false,
+  change: 'Set ANTHROPIC_API_KEY to a working key and restart the dev server.',
 }
 
 /**
