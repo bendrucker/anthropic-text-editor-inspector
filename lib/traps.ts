@@ -1,8 +1,21 @@
 /**
  * Matcher inputs derived from the document rather than declared alongside it.
  *
- * A trap is a prompt that names a string appearing more than once, so the first
- * `old_str` the model tries matches several places and the tool refuses it.
+ * A trap is a prompt that names a string appearing more than once, so the
+ * shortest `old_str` that reaches the target is one the matcher refuses. That
+ * is a property of the document, and it is the only thing verified here.
+ *
+ * It is not a property of what the model sends. An earlier version of this
+ * comment said the first `old_str` the model tries matches several places and
+ * gets refused, and 214 live runs against Sonnet 5 put that at 3 refusals. The
+ * rate was no different with the prompt rules on than off. The model resolves
+ * the ambiguity before it calls the tool, almost always by extending `old_str`
+ * past the repeat, and it will extend across several hundred characters of
+ * identical lines rather than send an ambiguous match. So the trap names a
+ * string the matcher will refuse, and what it demonstrates is the resolving,
+ * not a refusal. `briefTraps` is where that distinction is said out loud, next
+ * to the code that establishes it.
+ *
  * Hand-written traps only stay true for the document they were written against,
  * which rules them out for a library and for generated documents. These are
  * found by scanning the canonical text, and every one is verified ambiguous
@@ -13,6 +26,8 @@ import { findAll, locateEdit } from './str-replace'
 export interface Trap {
   needle: string
   prompt: string
+  /** Places the matcher found, so the panel can count without recounting. */
+  matches: number
   why: string
 }
 
@@ -154,9 +169,13 @@ function phrase(candidate: Candidate): string {
 }
 
 /**
- * Traps for a document, verified against it. The prompt is phrased in the
- * singular so the model targets one location, which is what makes several
- * matches a refusal rather than a legitimate `replace_all`.
+ * Traps for a document, verified against it.
+ *
+ * The prompt is phrased in the singular because that is how a person asks. It
+ * does not bind the model to one location: `Italicize the word Moderate` reads
+ * as every occurrence, and a run of that prompt is as likely to come back as a
+ * legitimate `replace_all` as anything else. The verified claim is the one the
+ * matcher answers, which is that the needle alone is refused.
  */
 export function deriveTraps(canonical: string, limit = 3): Trap[] {
   const ranked = independent(collect(canonical)).sort((a, b) => score(a) - score(b))
@@ -172,11 +191,62 @@ export function deriveTraps(canonical: string, limit = 3): Trap[] {
     traps.push({
       needle: candidate.needle,
       prompt: phrase(candidate),
+      matches: outcome.matches.length,
       why: `"${candidate.needle}" appears ${outcome.matches.length} times`,
     })
   }
 
   return traps
+}
+
+export interface TrapBriefing {
+  /** The one thing the derivation establishes, phrased for the panel. */
+  guarantee: string
+  /** Where the model goes instead of into that refusal, commonest first. */
+  routes: { name: string; detail: string }[]
+}
+
+/**
+ * What the panel is allowed to claim, built from the traps it is about to show.
+ *
+ * The copy lives here rather than in the component so that the sentence and the
+ * check that backs it cannot drift apart. `guarantee` restates the outcome of
+ * `locateEdit` and nothing else, and it counts the matches the derivation
+ * recorded rather than a number written by hand. `routes` is deliberately not a
+ * promise. It names what the model has been observed to do, and the console is
+ * what says which one happened on any given run.
+ */
+export function briefTraps(traps: Trap[]): TrapBriefing {
+  const counts = [...new Set(traps.map((trap) => trap.matches))].sort((a, b) => a - b)
+  const places =
+    counts.length === 1
+      ? `${counts[0]} places`
+      : `${counts[0]} to ${counts[counts.length - 1]} places`
+
+  return {
+    guarantee: `Found by scanning this document for repeated strings, then checked against the matcher. Each occupies ${places}, so on its own it is refused as ambiguous. Paste one into the match sandbox to see that refusal.`,
+    routes: [
+      {
+        name: 'Extend',
+        detail:
+          'Grow old_str past the repeat until one place is left. This is the usual answer by a wide margin, and it is why clicking one of these mostly produces a clean edit rather than a rejection.',
+      },
+      {
+        name: 'Replace all',
+        detail:
+          'Change every occurrence in one call. A request naming a bare word often reads that way, and reading it that way is correct. Only this app schema offers the field. The built-in text editor tool has no replace_all.',
+      },
+      {
+        name: 'Split',
+        detail: 'Write one already-unique edit per occurrence, all in the same turn.',
+      },
+      {
+        name: 'Ask',
+        detail:
+          'Answer with a question instead of an edit, when nothing in the request says which occurrence was meant.',
+      },
+    ],
+  }
 }
 
 export interface Probe {

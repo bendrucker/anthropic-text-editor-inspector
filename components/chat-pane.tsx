@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Streamdown } from 'streamdown'
 import { FileText, Pilcrow, TextCursor } from 'lucide-react'
 import {
@@ -8,7 +8,7 @@ import {
   type ConversationItem,
   type EditRecord,
 } from '@/hooks/use-live-document'
-import type { Trap } from '@/lib/traps'
+import { briefTraps, type Trap } from '@/lib/traps'
 import { ExactText } from './ui/exact-text'
 import { PulseDot } from './ui/activity'
 
@@ -40,6 +40,10 @@ export function ChatPane({
 }: ChatPaneProps) {
   const [draft, setDraft] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
+
+  // The panel's copy is a function of the traps it is about to show, so that a
+  // change to what the derivation verifies has to pass through the sentence.
+  const briefing = useMemo(() => briefTraps(traps), [traps])
 
   // A replay drives the same handlers, so it fills the conversation the same way.
   const streaming = running || replaying
@@ -99,15 +103,20 @@ export function ChatPane({
             {traps.length > 0 && (
               <div className="space-y-2">
                 <p className="text-[11px] font-medium tracking-wide text-amber-700 uppercase">
-                  Ambiguity traps
+                  Ambiguous targets
                 </p>
+                <p className="text-xs leading-relaxed text-slate-500">{briefing.guarantee}</p>
                 <p className="text-xs leading-relaxed text-slate-500">
-                  Found by scanning this document for repeated strings, then checked against the
-                  matcher. Each names something appearing more than once, so the first{' '}
-                  <span className="font-mono">old_str</span> the model tries is ambiguous and gets
-                  rejected. Turn off prompt rules first to watch it learn the constraint from the
-                  tool result.
+                  The model rarely sends it bare. Watch the console for which way out it takes.
                 </p>
+                <ul className="space-y-1">
+                  {briefing.routes.map((route) => (
+                    <li key={route.name} className="text-xs leading-relaxed text-slate-500">
+                      <span className="font-medium text-slate-600">{route.name}.</span>{' '}
+                      {route.detail}
+                    </li>
+                  ))}
+                </ul>
                 {traps.map((trap) => (
                   <button
                     key={trap.needle}

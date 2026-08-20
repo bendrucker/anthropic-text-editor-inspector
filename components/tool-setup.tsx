@@ -53,8 +53,9 @@ const SWITCHES: Switch[] = [
         body: (
           <>
             The system prompt states both constraints up front: <code>old_str</code> must match
-            exactly once, and table cells carry alignment padding that has to be reproduced. The
-            first edit usually lands, so the retry loop never runs where you can watch it.
+            exactly once, and table cells carry alignment padding that has to be reproduced. It also
+            names the two ways out of a repeat, extending <code>old_str</code> and setting{' '}
+            <code>replace_all</code>.
           </>
         ),
       },
@@ -62,8 +63,10 @@ const SWITCHES: Switch[] = [
         name: 'Off',
         body: (
           <>
-            The same two constraints reach the model only as tool results, after an edit has already
-            been rejected. The console shows it learning them mid-run.
+            Nothing states the constraints, so the model is working from its own training. Measured
+            across 144 runs on the ambiguity traps, that changes the rejection rate by nothing worth
+            reporting: it satisfies both constraints either way. The switch shows how little the
+            prompt is carrying, not a retry loop it turns on.
           </>
         ),
       },
@@ -151,7 +154,7 @@ export function ToolSetup(props: ToolSetupProps) {
 
   return (
     <div className="flex shrink-0 items-center gap-2 border-b border-slate-200 bg-slate-50/70 px-6 py-1.5">
-      <span className="mr-1 text-[11px] font-medium tracking-wide text-slate-400 uppercase">
+      <span className="mr-1 text-[11px] font-medium tracking-wide text-slate-600 uppercase">
         Tool setup
       </span>
 
@@ -204,7 +207,7 @@ export function ToolSetup(props: ToolSetupProps) {
         )
       })}
 
-      <span className="ml-auto text-[11px] text-slate-400">
+      <span className="ml-auto text-[11px] text-slate-600">
         {builtin
           ? 'Server-defined means the schema. This app still runs the call and returns the result.'
           : 'Amber means changed from the shipping default.'}
