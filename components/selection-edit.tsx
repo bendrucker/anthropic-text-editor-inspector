@@ -86,7 +86,7 @@ export function SelectionEdit({ editor, onAsk }: SelectionEditProps) {
           if (event.key === 'Escape') dismiss()
         }}
         placeholder="Change this to…"
-        className="w-72 bg-transparent px-3 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
+        className="w-72 bg-transparent px-3 py-1.5 text-sm text-slate-800 placeholder:text-slate-500 focus:outline-none"
       />
       <button
         onClick={submit}

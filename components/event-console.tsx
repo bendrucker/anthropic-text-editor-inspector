@@ -124,12 +124,12 @@ export function EventConsole({ timeline }: EventConsoleProps) {
           <PopoverTrigger asChild>
             <button className="flex items-center gap-1 rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-slate-600 transition hover:border-slate-300">
               {mutedNames.size > 0 ? `${mutedNames.size} type${mutedNames.size === 1 ? '' : 's'} hidden` : 'Types'}
-              <ChevronDown className="size-3 text-slate-400" />
+              <ChevronDown className="size-3 text-slate-500" />
             </button>
           </PopoverTrigger>
           <PopoverContent className="w-64">
             <div className="flex items-center justify-between px-1.5 pb-1">
-              <span className="text-[10px] font-medium tracking-wide text-slate-400 uppercase">
+              <span className="text-[10px] font-medium tracking-wide text-slate-500 uppercase">
                 Event types
               </span>
               <button
@@ -141,7 +141,7 @@ export function EventConsole({ timeline }: EventConsoleProps) {
               </button>
             </div>
             {census.names.size === 0 && (
-              <p className="px-1.5 py-1 text-[11px] text-slate-400">Nothing has arrived yet.</p>
+              <p className="px-1.5 py-1 text-[11px] text-slate-500">Nothing has arrived yet.</p>
             )}
             {[...census.names].map(([name, count]) => (
               <PopoverCheck
@@ -180,7 +180,7 @@ export function EventConsole({ timeline }: EventConsoleProps) {
           {filtered && (
             <button
               onClick={clearFilters}
-              className="text-[10px] text-slate-400 underline underline-offset-2 hover:text-slate-600"
+              className="text-[10px] text-slate-500 underline underline-offset-2 hover:text-slate-700"
             >
               {shown} of {timeline.length}
             </button>
@@ -190,7 +190,7 @@ export function EventConsole({ timeline }: EventConsoleProps) {
               <PopoverTrigger asChild>
                 <button
                   aria-label="Console settings"
-                  className="rounded border border-transparent p-0.5 text-slate-400 transition hover:border-slate-200 hover:bg-white hover:text-slate-600"
+                  className="rounded border border-transparent p-0.5 text-slate-500 transition hover:border-slate-200 hover:bg-white hover:text-slate-700"
                 >
                   <Settings2 className="size-3.5" />
                 </button>
@@ -203,7 +203,7 @@ export function EventConsole({ timeline }: EventConsoleProps) {
               <PopoverCheck checked={foldRepeats} onChange={setFoldRepeats}>
                 Fold repeated events
               </PopoverCheck>
-              <p className="px-1.5 pt-1 text-[10px] leading-relaxed text-slate-400">
+              <p className="px-1.5 pt-1 text-[10px] leading-relaxed text-slate-500">
                 Folding keeps events in arrival order. It only collapses neighbours that share a
                 name.
               </p>
@@ -227,11 +227,11 @@ export function EventConsole({ timeline }: EventConsoleProps) {
           className="min-h-0 flex-1 overflow-y-auto px-3 py-1"
         >
           {timeline.length === 0 ? (
-            <p className="py-6 text-center text-xs text-slate-400">
+            <p className="py-6 text-center text-xs text-slate-500">
               Ask for an edit. Every event that crosses the wire lands here.
             </p>
           ) : rows.length === 0 ? (
-            <p className="py-6 text-center text-xs text-slate-400">
+            <p className="py-6 text-center text-xs text-slate-500">
               No event matches.{' '}
               <button onClick={clearFilters} className="underline underline-offset-2">
                 Clear the filters
@@ -302,7 +302,7 @@ function ColumnHeader({ gaps }: { gaps: boolean }) {
   return (
     <div
       role="row"
-      className={`${COLUMNS} shrink-0 border-y border-slate-200 px-3 py-1 text-[9px] font-medium tracking-wide text-slate-400 uppercase`}
+      className={`${COLUMNS} shrink-0 border-y border-slate-200 px-3 py-1 text-[9px] font-medium tracking-wide text-slate-600 uppercase`}
     >
       <span role="columnheader" className="text-right">
         {gaps ? 'Gap' : 'Time'}
@@ -370,7 +370,7 @@ function EventRow({
         <Tooltip content={SOURCE_EXPLANATION[entry.source]}>
           <span
             role="cell"
-            className={`font-medium ${entry.source === 'wire' ? 'text-blue-500' : 'text-slate-400'}`}
+            className={`font-medium ${entry.source === 'wire' ? 'text-blue-600' : 'text-slate-600'}`}
           >
             {entry.source}
           </span>
@@ -379,12 +379,12 @@ function EventRow({
         <span role="cell" className="flex min-w-0 items-baseline gap-1">
           {openable ? (
             <Disclosure open={expanded} controls={detailId(entry.id)} onToggle={onToggle}>
-              <Twisty open={expanded} shown nested={nested} />
+              <Twisty open={expanded} shown />
               {label}
             </Disclosure>
           ) : (
             <>
-              <Twisty shown={false} nested={nested} />
+              <Twisty shown={false} />
               {label}
             </>
           )}
@@ -392,7 +392,7 @@ function EventRow({
 
         <span role="cell" className="flex min-w-0 items-baseline gap-2 truncate">
           {qualifier && (
-            <span className="shrink-0 font-mono text-slate-500">
+            <span className="shrink-0 font-mono text-slate-600">
               <Highlight text={qualifier} query={query} />
             </span>
           )}
@@ -402,7 +402,7 @@ function EventRow({
             </span>
           )}
           {entry.detail && (
-            <span className="truncate text-slate-400">
+            <span className="truncate text-slate-600">
               <Highlight text={entry.detail} query={query} />
             </span>
           )}
@@ -419,7 +419,7 @@ function EventRow({
           >
             {entry.raw !== undefined && (
               <div>
-                <p className="text-[10px] font-medium text-slate-500">
+                <p className="text-[10px] font-medium text-slate-600">
                   Raw fragment · {entry.raw.length} chars
                 </p>
                 <pre className="mt-0.5 rounded border border-slate-200 bg-white px-2 py-1 font-mono text-[10px] leading-relaxed break-all whitespace-pre-wrap text-slate-600">
@@ -428,7 +428,7 @@ function EventRow({
               </div>
             )}
             {entry.detail && (
-              <p className="text-[10px] leading-relaxed text-slate-500">
+              <p className="text-[10px] leading-relaxed text-slate-600">
                 <Highlight text={entry.detail} query={query} />
               </p>
             )}
@@ -504,7 +504,7 @@ function GroupRow({
         <Tooltip content={SOURCE_EXPLANATION[row.source]}>
           <span
             role="cell"
-            className={`font-medium ${row.source === 'wire' ? 'text-blue-500' : 'text-slate-400'}`}
+            className={`font-medium ${row.source === 'wire' ? 'text-blue-600' : 'text-slate-600'}`}
           >
             {row.source}
           </span>
@@ -528,7 +528,7 @@ function GroupRow({
           </Disclosure>
         </span>
 
-        <span role="cell" className="flex min-w-0 items-baseline gap-2 truncate text-slate-400">
+        <span role="cell" className="flex min-w-0 items-baseline gap-2 truncate text-slate-600">
           {joined !== undefined && (
             <span className="truncate rounded bg-white px-1 font-mono text-slate-500">
               {JSON.stringify(joined)}
@@ -541,9 +541,9 @@ function GroupRow({
   )
 }
 
-function Twisty({ open, shown, nested }: { open?: boolean; shown: boolean; nested?: boolean }) {
+function Twisty({ open, shown }: { open?: boolean; shown: boolean }) {
   return (
-    <span className={`w-3 shrink-0 ${nested ? 'text-slate-200' : 'text-slate-300'}`}>
+    <span className="w-3 shrink-0 text-slate-500">
       {shown &&
         (open ? (
           <ChevronDown className="size-3 translate-y-0.5" />
@@ -569,7 +569,7 @@ function Clock({ at, gaps }: { at?: Stamp; gaps: boolean }) {
           </>
         }
       >
-        <span role="cell" className="text-right text-slate-300">
+        <span role="cell" className="text-right text-slate-600">
           —
         </span>
       </Tooltip>
@@ -584,7 +584,7 @@ function Clock({ at, gaps }: { at?: Stamp; gaps: boolean }) {
           : `${formatGap(at.gapMs)} after the previous event`
       }
     >
-      <span role="cell" className="text-right tabular-nums text-slate-400">
+      <span role="cell" className="text-right tabular-nums text-slate-600">
         {gaps ? formatGap(at.gapMs) : formatElapsed(at.atMs)}
       </span>
     </Tooltip>
@@ -603,21 +603,21 @@ function formatGap(ms: number): string {
 function FilterBox({ value, onChange }: { value: string; onChange: (next: string) => void }) {
   return (
     <label className="flex w-48 shrink-0 items-center gap-1 rounded border border-slate-200 bg-white px-1.5 py-0.5 focus-within:border-slate-400">
-      <Search className="size-3 shrink-0 text-slate-300" />
+      <Search className="size-3 shrink-0 text-slate-500" />
       <input
         value={value}
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={(event) => event.key === 'Escape' && onChange('')}
         placeholder="Filter"
         aria-label="Filter events"
-        className="min-w-0 flex-1 bg-transparent text-[11px] text-slate-700 placeholder:text-slate-300 focus:outline-none"
+        className="min-w-0 flex-1 bg-transparent text-[11px] text-slate-700 placeholder:text-slate-500 focus:outline-none"
       />
       {value && (
         <Tooltip content="Clear the filter. Escape does the same from inside the box.">
           <button
             onClick={() => onChange('')}
             aria-label="Clear the filter"
-            className="shrink-0 text-slate-300 hover:text-slate-500"
+            className="shrink-0 text-slate-500 hover:text-slate-700"
           >
             <X className="size-3" />
           </button>
@@ -654,11 +654,11 @@ function Chip({
         onClick={onClick}
         aria-pressed={active}
         className={`flex shrink-0 items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-medium transition ${
-          active ? CHIP_TONES[tone] : 'border-transparent bg-transparent text-slate-300 hover:text-slate-400'
+          active ? CHIP_TONES[tone] : 'border-transparent bg-transparent text-slate-500 hover:text-slate-700'
         }`}
       >
         {children}
-        <span className="tabular-nums opacity-70">{count}</span>
+        <span className="tabular-nums">{count}</span>
       </button>
     </Tooltip>
   )
