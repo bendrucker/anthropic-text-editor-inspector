@@ -41,11 +41,14 @@ bun run dev --port <port> --strictPort
 
 A dev server serves the checkout it started in, and many of them run here at once across several checkouts. That includes the primary repo, and worktrees that `wt remove` has since trashed. A request to a port belonging to someone else's checkout succeeds and returns a plausible page. The measurement then describes code that is not yours, which is what makes this expensive.
 
-Confirming the port number is not enough, because two checkouts answer the same URL with different source. Read the served source and grep for a token that exists only in your build:
+Confirming the port number is not enough, because two checkouts answer the same URL with different source. Plant a token nothing else can produce, then read the served source back:
 
 ```
-curl -s http://localhost:<port>/components/run-inspector.tsx | grep -o 'grid-cols-\[[^"]*\]'
+printf '\n// probe-%s\n' "$(git rev-parse --short HEAD)" >> lib/paint.ts
+curl -s http://localhost:<port>/lib/paint.ts | grep -c 'probe-'
 ```
+
+Plant one rather than grepping a value already in the source. A distinctive-looking string can be identical in the checkout next door, so it returns a match that proves nothing. `git checkout lib/paint.ts` drops the token when the measuring is done.
 
 A discriminator on a *rendered* value can pass while the source belongs to another checkout. Grid tracks measured at 509.64 and then 491 across a viewport change read as responsive, and neither number came from the build under test. Served source cannot move like that.
 
