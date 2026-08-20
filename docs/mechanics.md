@@ -180,7 +180,7 @@ A third case covers input that never became valid JSON, which eager streaming ma
 
 The loop pushes the results as a user message and starts another turn. The model reads "matched 4 times, extend it with surrounding text", extends `old_str`, and calls again.
 
-Turning `Prompt rules` off drops the uniqueness and padding rules from the system prompt. It does not reliably produce a rejection. Across 217 attempts against this app's ambiguous strings, 3 were refused, and none by the mechanism the panel describes. Current models settle an ambiguous `old_str` before they call the tool: they extend the needle until it is unique, set `replace_all`, split the edit into several unique calls, or ask which occurrence was meant. The `Ambiguous targets` panel is named for what the document offers rather than for what the model does with it.
+Turning `Prompt rules` off drops the uniqueness and padding rules from the system prompt. It does not reliably produce a rejection. Across 144 attempts against this app's ambiguous strings, half with the rules on and half off, 3 were refused, and none by the mechanism the panel describes. Current models settle an ambiguous `old_str` before they call the tool: they extend the needle until it is unique, set `replace_all`, split the edit into several unique calls, or ask which occurrence was meant. The `Ambiguous targets` panel is named for what the document offers rather than for what the model does with it.
 
 To reach the loop on demand, name an `old_str` the document does not contain. Zero matches is the one failure a model cannot resolve by looking harder.
 
