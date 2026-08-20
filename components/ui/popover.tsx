@@ -25,7 +25,6 @@ export function PopoverContent({
   )
 }
 
-/** A checkbox row, for popovers used as menus of toggles. */
 export function PopoverCheck({
   checked,
   onChange,

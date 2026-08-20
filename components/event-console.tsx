@@ -10,9 +10,6 @@ interface EventConsoleProps {
 const SOURCES: TimelineSource[] = ['wire', 'app']
 
 /**
- * The run as a console: one line per event, columns that hold their position
- * down the whole list, and a body you open on the rows that carry one.
- *
  * Order is arrival order and nothing re-sorts it. Wire events and app decisions
  * are two interleaved streams, and the interleaving is what the panel exists to
  * show, so every control here removes rows or folds neighbours together. None
@@ -54,7 +51,7 @@ export function EventConsole({ timeline }: EventConsoleProps) {
     })
 
     // Timings come off the full timeline, so a filtered row still reports the
-    // wait that actually preceded it rather than the wait since the last kept row.
+        // wait that actually preceded it.
     const stamps = new Map<string, Stamp>()
     for (const [index, entry] of timeline.entries()) {
       stamps.set(entry.id, {
@@ -263,7 +260,7 @@ export function EventConsole({ timeline }: EventConsoleProps) {
   )
 }
 
-/** Four columns, shared by the header and every row, so nothing drifts. */
+/** Shared by the header and every row, so nothing drifts. */
 const COLUMNS = 'grid grid-cols-[3.75rem_2.25rem_10.5rem_minmax(0,1fr)] items-baseline gap-x-2'
 
 const NEST = 'ml-[7.75rem]'
@@ -388,7 +385,6 @@ function EventRow({
   )
 }
 
-/** The stand-in for a run of neighbouring events that share a name. */
 function GroupRow({
   row,
   gaps,
@@ -595,7 +591,6 @@ function haystack(entry: TimelineEntry): string {
   return `${entry.label} ${entry.detail ?? ''} ${entry.raw ?? ''}`.toLowerCase()
 }
 
-/** Chips and checkboxes are toggles, and every one of them mutes or unmutes a key. */
 function without<T>(muted: ReadonlySet<T>, key: T): ReadonlySet<T> {
   const next = new Set(muted)
   if (!next.delete(key)) next.add(key)
@@ -619,7 +614,6 @@ function tally(timeline: TimelineEntry[]): Census {
   return census
 }
 
-/** When an event landed, how long the wait before it was, and whether it said. */
 interface Stamp {
   atMs: number
   gapMs: number
