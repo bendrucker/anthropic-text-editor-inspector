@@ -97,6 +97,31 @@ body {
   }
 }
 
+/* The inset ring driven by a descendant, for a row whose focusable element is a
+   native input nested inside it. The checkbox is 12px wide in a row twenty times
+   that, and the row is what carries the pointer cursor and the hover fill, so
+   ringing the input rings the wrong box and leaves a keyboard reader hunting the
+   left edge for a 12px mark.
+
+   Inset for the reason `focus-ring-inset` gives above: the row fills a popover
+   that scrolls, and a ring drawn inside the border box cannot be clipped at any
+   scroll position. The ten event names this app emits fit `max-h-80` without
+   scrolling today, so the tightest clearance measured is 7px and an offset ring
+   would have survived too. That margin is about one event name wide. */
+@utility focus-ring-inset-within {
+  &:has(:focus-visible) {
+    outline: 2px solid var(--color-blue-500);
+    outline-offset: -2px;
+  }
+
+  /* The nested input keeps drawing Chrome's `auto 1px` on top of the row ring,
+     which is two indicators for one control. Every other ring in this app
+     replaces the UA outline rather than joining it. */
+  & :focus-visible {
+    outline: none;
+  }
+}
+
 /* Scrollbars ---------------------------------------------------------------- */
 
 /* Four panes scroll at once during a run, and macOS draws every one of them at

@@ -37,7 +37,7 @@ export function PopoverCheck({
   count?: number
 }) {
   return (
-    <label className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-[11px] text-slate-600 hover:bg-slate-100">
+    <label className="focus-ring-inset-within flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-[11px] text-slate-600 hover:bg-slate-100">
       <input
         type="checkbox"
         checked={checked}
