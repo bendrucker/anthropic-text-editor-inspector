@@ -1,9 +1,10 @@
-import Anthropic from '@anthropic-ai/sdk'
+import Anthropic, { APIConnectionError, APIConnectionTimeoutError, APIError } from '@anthropic-ai/sdk'
 import { locateEdit, applyEdit, type Match } from './str-replace'
 import { scanEditInput } from './partial-json'
 import { findModel, DEFAULT_MODEL, DEFAULT_EFFORT, type EffortChoice } from './models'
 import type { BufferState, TimelineEntry } from './timeline'
-import { BASE_URL, TRANSPORT } from './endpoint'
+import { BASE_URL, TRANSPORT, type Transport } from './endpoint'
+import { keyStore } from './api-key'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 
 /**
@@ -205,36 +206,122 @@ export interface RunOptions {
 
 /**
  * Anthropic refuses browser-origin requests from organizations that set custom
- * retention. The refusal arrives either as a readable body or, when the
- * preflight is what got rejected, as a bare network failure the browser will
- * not explain. Both mean the same thing and have the same fix.
+ * retention. The refusal is readable only when the request itself is what got
+ * rejected. A rejected preflight leaves the browser with nothing to report, and
+ * the SDK turns that into an `APIConnectionError` whose message says nothing.
  */
 const CORS_REFUSAL = /CORS requests are not allowed/i
-const OPAQUE_NETWORK_FAILURE = /failed to fetch|load failed|networkerror/i
 
-const CORS_HELP =
-  'This organization does not allow browser requests to the API. The macOS desktop build issues requests outside the browser, so it works with this key: https://github.com/bendrucker/anthropic-text-editor-inspector/releases. Running the inspector locally with `bun run dev` also works, since the dev server forwards the request. Your key stays on your own machine either way.'
+/** The way out, which is the same whether the refusal was readable or not. */
+const CORS_FIX =
+  'The macOS desktop build issues requests outside the browser, so it works with this key: https://github.com/bendrucker/anthropic-text-editor-inspector/releases. Running the inspector locally with `bun run dev` also works, since the dev server forwards the request. Your key stays on your own machine either way.'
 
-/** The SDK's message for a failed request is the raw response body. */
+const CORS_HELP = `This organization does not allow browser requests to the API. ${CORS_FIX}`
+
+/**
+ * What a request that never got an answer means, which depends on who was
+ * making it. Only `direct` is a browser request, so only it can be refused on
+ * origin. The other two fail somewhere the user can go and look.
+ */
+const CONNECTION_HELP: Record<Transport, string> = {
+  direct: `The request never reached the API, and a rejected preflight looks exactly like being offline. If you are online, this organization does not allow browser requests. ${CORS_FIX}`,
+  proxy:
+    'The request never reached api.anthropic.com. It goes through the dev server, so either that server stopped or it could not reach the API itself. The terminal running `bun run dev` has the real error.',
+  tauri:
+    'The request failed in Rust, which is what issues it in the desktop build. Nothing was refused on origin, so this is a network, DNS, or TLS failure on this machine.',
+}
+
+/** An error body can be a whole HTML gateway page. A clause of it is evidence, the rest is noise. */
+const DETAIL_LIMIT = 300
+
+function clip(text: string): string {
+  const collapsed = text.replace(/\s+/g, ' ').replaceAll('`', "'").trim()
+  return collapsed.length > DETAIL_LIMIT ? `${collapsed.slice(0, DETAIL_LIMIT)}…` : collapsed
+}
+
+/**
+ * What a status means and whether sending it again can change the answer. The
+ * SDK has already retried the retryable ones as many times as the client
+ * allows, so retryable here means later, by hand.
+ */
+function statusHelp(status: number): string | undefined {
+  if (status === 401) return `That API key was rejected. ${keyStore.change}`
+  if (status === 403)
+    return 'The API refused this request (403). The key is valid but not permitted to make it, which retrying will not change.'
+  if (status === 404)
+    return 'The API has no such endpoint or model (404). Retrying will not change that: check the model and the base URL this build points at.'
+  if (status === 429) return 'Rate limited (429). Wait a moment and send it again.'
+  if (status === 529) return 'The API is overloaded (529). Nothing is wrong with the request, so try again shortly.'
+  if (status >= 500) {
+    // Through the dev server a 502 or 504 is as likely to be the hop as the API,
+    // and only one of the two leaves anything the user can read.
+    const hop =
+      TRANSPORT === 'proxy'
+        ? ' The dev server can also answer with a 5xx of its own, in which case its terminal has the real error.'
+        : ''
+    return `The API failed on its side (${status}). That is usually transient, so it is worth sending again.${hop}`
+  }
+  return undefined
+}
+
+/**
+ * What the API itself said, as a trailing clause. A JSON error body reads as a
+ * sentence and is used as one. Anything else is quoted, because a proxy or a
+ * gateway can answer a request to the API with a page meant for a human.
+ */
+function apiDetail(cause: APIError): string | undefined {
+  const body = cause.error as { error?: { message?: unknown } } | undefined
+
+  if (body !== undefined) {
+    const reported = body.error?.message
+    if (typeof reported === 'string' && reported.trim()) return clip(reported)
+    return `\`${clip(JSON.stringify(body))}\``
+  }
+
+  // A body the SDK could not parse survives only inside the message it built,
+  // and that message is also what it says when there was no body to parse.
+  if (cause.status === undefined || cause.message === `${cause.status} status code (no body)`) {
+    return undefined
+  }
+  const prefix = `${cause.status} `
+  if (!cause.message.startsWith(prefix)) return undefined
+  const raw = cause.message.slice(prefix.length)
+  return raw.trim() ? `\`${clip(raw)}\`` : undefined
+}
+
 export function describeFailure(cause: unknown): string {
-  if (cause instanceof Anthropic.APIError) {
-    if (cause.status === 401) return 'That API key was rejected. Check it in the key control.'
-    if (cause.status === 429) return 'Rate limited. Wait a moment and try again.'
+  if (cause instanceof APIError) return describeApiError(cause)
+  return clip(cause instanceof Error ? cause.message : String(cause))
+}
 
-    const body = cause.error as { error?: { message?: string } } | undefined
-    const message = body?.error?.message
-    if (message) return CORS_REFUSAL.test(message) ? CORS_HELP : message
+/**
+ * The SDK's message is not a description of the failure. Every connection
+ * failure it throws carries the literal string `Connection error.`, whatever
+ * the browser or Rust actually reported, so the type is what has to be read.
+ */
+function describeApiError(cause: APIError): string {
+  if (cause instanceof APIConnectionTimeoutError) {
+    return 'The request timed out before the API answered.'
   }
 
-  const message = cause instanceof Error ? cause.message : String(cause)
-  if (CORS_REFUSAL.test(message)) return CORS_HELP
-
-  // A blocked preflight is indistinguishable from being offline, so say both.
-  if (TRANSPORT === 'direct' && OPAQUE_NETWORK_FAILURE.test(message)) {
-    return `The request never reached the API. Either you are offline, or this organization does not allow browser requests. ${CORS_HELP}`
+  if (cause instanceof APIConnectionError) {
+    // The browser's own error survives only here, as the cause the SDK wrapped.
+    const inner = cause.cause
+    const reported = inner instanceof Error ? inner.message : typeof inner === 'string' ? inner : ''
+    const evidence = reported ? ` The underlying error was \`${clip(reported)}\`.` : ''
+    return `${CONNECTION_HELP[TRANSPORT]}${evidence}`
   }
 
-  return message
+  const detail = apiDetail(cause)
+  if (detail && CORS_REFUSAL.test(detail)) return CORS_HELP
+
+  const help = cause.status === undefined ? undefined : statusHelp(cause.status)
+  const sentence = help ?? detail ?? clip(cause.message)
+  const evidence = help && detail ? ` The API said: ${detail}` : ''
+  // The one detail that makes a report to Anthropic actionable.
+  const request = cause.requestID ? ` (request ${cause.requestID})` : ''
+
+  return `${sentence}${evidence}${request}`
 }
 
 export function createClient(apiKey: string) {
