@@ -1,14 +1,17 @@
 /**
- * Asserts that prior turns reach the request.
+ * Asserts what leaves the browser: the prior turns, and the tool declaration.
  *
- * Without them the model cannot answer a follow-up or its own clarifying
+ * Without the turns the model cannot answer a follow-up or its own clarifying
  * question, which looks like working chat right up until a user replies to one.
  * Stubs fetch so this runs with no API key and no network.
  */
 import { runEdit, stripDanglingToolUse, type ConversationTurn } from '@/lib/agent'
 import type { AgentHandlers } from '@/lib/agent'
 
-const requests: { messages: { role: string; content: unknown }[] }[] = []
+const requests: {
+  messages: { role: string; content: unknown }[]
+  tools: Record<string, unknown>[]
+}[] = []
 
 const realFetch = globalThis.fetch
 globalThis.fetch = (async (_url: string, init: { body: string }) => {
@@ -43,9 +46,13 @@ const asked: ConversationTurn[] = [
 
 await runEdit({ ...base, prompt: 'the pipeline one', history: asked }).catch(() => {})
 
+// Anthropic owns the built-in tool's schema, so the request names a version
+// instead of describing one, and has nowhere to put a user-defined-tool field.
+await runEdit({ ...base, prompt: 'raise it', editorTool: 'builtin' }).catch(() => {})
+
 globalThis.fetch = realFetch
 
-const [first, second] = requests
+const [first, second, builtin] = requests
 const roles = (request: (typeof requests)[number]) => request.messages.map((m) => m.role).join(',')
 
 const checks: [string, boolean][] = [
@@ -56,6 +63,12 @@ const checks: [string, boolean][] = [
     JSON.stringify(second.messages[1]?.content ?? null).includes('Which Enterprise row?'),
   ],
   ['the reply is the last turn', second.messages.at(-1)?.content === 'the pipeline one'],
+  ['the built-in tool goes out by version', builtin.tools[0]?.type === 'text_editor_20250728'],
+  [
+    'the built-in tool carries no streaming control',
+    !('eager_input_streaming' in (builtin.tools[0] ?? {})),
+  ],
+  ['the custom tool still asks for its input early', first.tools[0]?.eager_input_streaming === true],
 ]
 
 // A turn that stopped for any reason other than tool_use can still carry a
