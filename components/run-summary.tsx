@@ -300,8 +300,14 @@ function RunRow({
   const label = findModel(run.model)?.label ?? run.model
   const effort = findEffort(run.effort)?.label.toLowerCase()
   const spans = timing && spansOf(timing)
-  const tail = timing?.settledMs !== undefined && timing.totalMs !== undefined
-    ? Math.round(((timing.totalMs - timing.settledMs) / Math.max(timing.totalMs, 1)) * 100)
+  // A path that commits on settle paints after the stream has closed, so the
+  // document can finish changing after the run ends. There is no tail to take a
+  // share of then, and the subtraction prints one as a negative percentage.
+  // `tailLine` already says what happened instead.
+  const tail = timing?.settledMs !== undefined
+    && timing.totalMs !== undefined
+    && timing.totalMs > timing.settledMs
+    ? Math.round(((timing.totalMs - timing.settledMs) / timing.totalMs) * 100)
     : null
 
   return (

@@ -1,10 +1,10 @@
-import { useState, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import * as Tabs from '@radix-ui/react-tabs'
 import type { BufferState, TimelineEntry } from '@/lib/timeline'
 import type { Match } from '@/lib/str-replace'
 import type { Probe } from '@/lib/traps'
 import type { Run } from '@/hooks/use-live-document'
-import { EventConsole } from './event-console'
+import { EventConsole, counts } from './event-console'
 import { Tooltip } from './ui/tooltip'
 import { MatchSandbox } from './match-sandbox'
 import { RunHistory } from './run-summary'
@@ -40,6 +40,7 @@ export function RunInspector({
 }: RunInspectorProps) {
   const [open, setOpen] = useState(true)
   const [panel, setPanel] = useState<Panel>('buffer')
+  const { rows, turns } = useMemo(() => counts(timeline), [timeline])
 
   return (
     <section
@@ -49,10 +50,16 @@ export function RunInspector({
       <div className="flex shrink-0 items-center justify-between px-5 py-2">
         <span className="flex items-baseline gap-2">
           <span className="text-xs font-semibold text-slate-700">Run inspector</span>
+          {/* Both numbers, because either alone is one the console contradicts.
+              The timeline's length counts the requests the console draws as
+              separators rather than rows, so it is larger than anything the
+              list can show. The row count alone leaves those requests
+              unaccounted for. */}
           <span className="text-[11px] text-slate-500">
             {timeline.length === 0
               ? 'wire events and what the app did about them'
-              : `${timeline.length} event${timeline.length === 1 ? '' : 's'}`}
+              : `${rows} event${rows === 1 ? '' : 's'}`}
+            {turns > 0 && ` · ${turns} turn${turns === 1 ? '' : 's'}`}
             {replaying && ' · replaying at quarter speed'}
           </span>
         </span>
@@ -104,7 +111,14 @@ export function RunInspector({
         // added makes the tall case worse.
         <div
           id="run-inspector-panels"
-          className="grid h-[clamp(18rem,34vh,32.5rem)] grid-cols-[1fr_340px] overflow-hidden border-t border-slate-200"
+          // Both panes have a floor: the console's toolbar sets one around 490px
+          // and the panel column is 340px, so under about 830px they no longer
+          // fit side by side. `hidden` cut the panel off at its right edge with
+          // nothing to say so, and focusing a tab inside it scrolled the console
+          // away with no way to scroll back. Narrowing the panel instead would
+          // buy the width from the console's Detail column, which is the one
+          // that has to stay readable.
+          className="grid h-[clamp(18rem,34vh,32.5rem)] grid-cols-[1fr_340px] overflow-x-auto overflow-y-hidden border-t border-slate-200"
         >
           <EventConsole timeline={timeline} />
 
