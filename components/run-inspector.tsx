@@ -1,24 +1,27 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import * as Tabs from '@radix-ui/react-tabs'
 import type { BufferState, TimelineEntry } from '@/lib/timeline'
 import type { Match } from '@/lib/str-replace'
 import type { Probe } from '@/lib/traps'
+import type { Run } from '@/hooks/use-live-document'
 import { EventConsole } from './event-console'
 import { Tooltip } from './ui/tooltip'
 import { MatchSandbox } from './match-sandbox'
+import { RunHistory } from './run-controls'
 
 interface RunInspectorProps {
   timeline: TimelineEntry[]
   buffer: BufferState | null
   canonical: () => string
   probes: Probe[]
+  runs: Run[]
   onShowMatches: (matches: Match[]) => void
   onReplay: (speed?: number) => void
   replaying: boolean
   recorded: boolean
 }
 
-type Panel = 'buffer' | 'matcher'
+type Panel = 'buffer' | 'matcher' | 'runs'
 
 /**
  * The two streams side by side: what arrived on the wire, and what the app did
@@ -29,6 +32,7 @@ export function RunInspector({
   buffer,
   canonical,
   probes,
+  runs,
   onShowMatches,
   onReplay,
   replaying,
@@ -94,9 +98,13 @@ export function RunInspector({
       </div>
 
       {open && (
+        // Floored at the height the drawer has always had, so a laptop loses
+        // nothing, and proportional above it. One fixed number takes half a
+        // short screen and a fifth of a tall one, and every timeline entry
+        // added makes the tall case worse.
         <div
           id="run-inspector-panels"
-          className="grid h-72 grid-cols-[1fr_340px] overflow-hidden border-t border-slate-200"
+          className="grid h-[clamp(18rem,34vh,32.5rem)] grid-cols-[1fr_340px] overflow-hidden border-t border-slate-200"
         >
           <EventConsole timeline={timeline} />
 
@@ -108,6 +116,10 @@ export function RunInspector({
             <Tabs.List className="flex shrink-0 gap-1 border-b border-slate-200 px-3 py-1.5">
               <PanelTab value="buffer">Input buffer</PanelTab>
               <PanelTab value="matcher">Matcher</PanelTab>
+              {/* Run telemetry belongs with the timeline it summarises. In a tab
+                  it also scrolls, so five runs cannot squeeze the panel it
+                  shares a column with. */}
+              <PanelTab value="runs">Runs{runs.length > 0 && ` · ${runs.length}`}</PanelTab>
             </Tabs.List>
 
             <Tabs.Content value="buffer" className="flex min-h-0 flex-1 flex-col">
@@ -116,6 +128,9 @@ export function RunInspector({
             <Tabs.Content value="matcher" className="flex min-h-0 flex-1 flex-col">
               <MatchSandbox canonical={canonical} probes={probes} onShowMatches={onShowMatches} />
             </Tabs.Content>
+            <Tabs.Content value="runs" className="flex min-h-0 flex-1 flex-col">
+              <RunHistory runs={runs} />
+            </Tabs.Content>
           </Tabs.Root>
         </div>
       )}
@@ -123,7 +138,7 @@ export function RunInspector({
   )
 }
 
-function PanelTab({ value, children }: { value: Panel; children: string }) {
+function PanelTab({ value, children }: { value: Panel; children: ReactNode }) {
   return (
     <Tabs.Trigger
       value={value}

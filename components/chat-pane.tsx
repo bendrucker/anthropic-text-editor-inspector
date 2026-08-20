@@ -7,19 +7,16 @@ import {
   type ApplyPath,
   type ConversationItem,
   type EditRecord,
-  type Run,
 } from '@/hooks/use-live-document'
 import type { Trap } from '@/lib/traps'
 import { ExactText } from './ui/exact-text'
 import { PulseDot } from './ui/activity'
-import { RunHistory } from './run-controls'
 
 interface ChatPaneProps {
   /** Edits that read naturally against the open document. */
   prompts: string[]
   traps: Trap[]
   conversation: ConversationItem[]
-  runs: Run[]
   running: boolean
   replaying: boolean
   hasKey: boolean
@@ -33,7 +30,6 @@ export function ChatPane({
   prompts,
   traps,
   conversation,
-  runs,
   running,
   replaying,
   hasKey,
@@ -74,7 +70,13 @@ export function ChatPane({
 
   return (
     <div className="flex h-full min-h-0 flex-col border-l border-slate-200 bg-slate-50/60">
-      <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto px-5 py-6">
+      {/* `overflow-y-auto` sets `min-height: 0`, so this region has no floor of
+          its own and a short viewport drives it to nothing. The `Pending` card
+          that explains a wait is 75px inside 48px of padding, and it is needed
+          precisely when the screen is busiest. A basis rather than a
+          `min-height` reserves that space where it exists and yields it below
+          roughly 640px, where a hard floor would push the composer off-screen. */}
+      <div ref={scrollRef} className="flex-[1_1_8rem] space-y-4 overflow-y-auto px-5 py-6">
         {conversation.length === 0 && (
           <div className="space-y-4">
             <p className="text-sm text-slate-500">
@@ -156,8 +158,6 @@ export function ChatPane({
           </div>
         )}
       </div>
-
-      <RunHistory runs={runs} />
 
       <div className="border-t border-slate-200 bg-white p-3">
         <div className="flex items-end gap-2">

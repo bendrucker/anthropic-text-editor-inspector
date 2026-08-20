@@ -106,10 +106,18 @@ export function RunControls({
 
 /** Recent runs, so a demo can compare configurations rather than assert a number. */
 export function RunHistory({ runs }: { runs: Run[] }) {
-  if (runs.length === 0) return null
+  if (runs.length === 0) {
+    return (
+      <div className="px-4 py-3">
+        <p className="text-[11px] text-slate-400">
+          Each finished run lands here, so two configurations can be compared rather than described.
+        </p>
+      </div>
+    )
+  }
 
   return (
-    <div className="border-t border-slate-200 px-5 py-3">
+    <div className="min-h-0 overflow-y-auto px-4 py-3">
       <p className="mb-2 text-[11px] font-medium tracking-wide text-slate-400 uppercase">
         Time to first edit
       </p>
