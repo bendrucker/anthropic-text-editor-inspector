@@ -173,7 +173,7 @@ export function ChatPane({
             rows={2}
             disabled={!hasKey}
             placeholder={hasKey ? 'Ask for an edit…' : 'Add your API key to start'}
-            className="flex-1 resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none"
+            className="flex-1 resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-500 focus:border-slate-400 focus:outline-none"
           />
           {running ? (
             <button
@@ -206,9 +206,9 @@ function Pending({ afterEdit, replaying }: { afterEdit: boolean; replaying: bool
       <span className="min-w-0">
         <span className="font-medium text-slate-600">
           {afterEdit ? 'Tool result sent back' : 'Request sent'}
-          {replaying && <span className="ml-1.5 font-normal text-slate-400">replaying</span>}
+          {replaying && <span className="ml-1.5 font-normal text-slate-500">replaying</span>}
         </span>
-        <span className="mt-0.5 block leading-relaxed text-slate-400">
+        <span className="mt-0.5 block leading-relaxed text-slate-600">
           {afterEdit
             ? 'The model reads the result and takes another turn. Nothing streams until it does.'
             : 'Waiting for the first byte. Nothing about the edit is known yet.'}
@@ -250,7 +250,7 @@ function EditCard({ edit, onRevert }: { edit: EditRecord; onRevert: (edit: EditR
       <div className="mb-2 flex items-center justify-between gap-2">
         <span className="flex min-w-0 items-center gap-2">
           {live && <PulseDot />}
-          <span className="font-mono text-[11px] text-slate-400">str_replace</span>
+          <span className="font-mono text-[11px] text-slate-600">str_replace</span>
           {/* The status label is the whole life of a tool call in four words. It
               settles a handful of times per call, so announcing it tells a
               reader an edit landed or was rejected without narrating the stream. */}
@@ -263,7 +263,7 @@ function EditCard({ edit, onRevert }: { edit: EditRecord; onRevert: (edit: EditR
           {edit.status === 'applied' && !edit.reverted && (
             <button
               onClick={() => onRevert(edit)}
-              className="text-slate-400 underline-offset-2 transition hover:text-slate-700 hover:underline"
+              className="text-slate-500 underline-offset-2 transition hover:text-slate-700 hover:underline"
             >
               Undo
             </button>
@@ -274,17 +274,17 @@ function EditCard({ edit, onRevert }: { edit: EditRecord; onRevert: (edit: EditR
       {edit.status === 'rejected' ? (
         <div className="space-y-2">
           <div>
-            <p className="mb-1 text-[11px] text-amber-700/70">old_str the model sent</p>
+            <p className="mb-1 text-[11px] text-amber-700">old_str the model sent</p>
             {edit.oldStr ? (
               <ExactText text={edit.oldStr} className="text-amber-900" />
             ) : (
-              <p className="text-[11px] text-amber-700/70">
+              <p className="text-[11px] text-amber-700">
                 Nothing the scanner could read. The input never became valid JSON.
               </p>
             )}
           </div>
           <p className="leading-relaxed text-amber-800">{edit.message}</p>
-          <p className="text-[11px] text-amber-700/70">
+          <p className="text-[11px] text-amber-700">
             Returned to the model as the tool result. It gets to try again.
           </p>
         </div>
@@ -297,7 +297,7 @@ function EditCard({ edit, onRevert }: { edit: EditRecord; onRevert: (edit: EditR
             complete={edit.newStrComplete}
             className="text-emerald-700"
           />
-          <p className="leading-relaxed text-slate-500">
+          <p className="leading-relaxed text-slate-600">
             {edit.status === 'buffering' ? (
               <>
                 Nothing can be located from a prefix of{' '}
@@ -317,12 +317,12 @@ function EditCard({ edit, onRevert }: { edit: EditRecord; onRevert: (edit: EditR
           )}
           {edit.newStr && <ExactText text={edit.newStr} className="text-emerald-700" />}
           {edit.status === 'incomplete' && (
-            <p className="text-[11px] text-slate-400">
+            <p className="text-[11px] text-slate-600">
               The turn ended before this call produced a result, so nothing was applied.
             </p>
           )}
           {edit.status === 'applied' && (
-            <p className="pt-0.5 text-[11px] leading-relaxed text-slate-400">
+            <p className="pt-0.5 text-[11px] leading-relaxed text-slate-600">
               {path?.summary ??
                 'Applied on commit. This app could not locate the target while the call was open, so which path ran is unknown.'}
             </p>
@@ -350,11 +350,11 @@ function Field({
   return (
     <div>
       <p className="mb-1 flex items-center gap-2 text-[11px]">
-        <span className="font-mono text-slate-500">{name}</span>
-        <span className={complete ? 'text-emerald-600' : value ? 'text-blue-600' : 'text-slate-400'}>
+        <span className="font-mono text-slate-600">{name}</span>
+        <span className={complete ? 'text-emerald-700' : value ? 'text-blue-600' : 'text-slate-600'}>
           {state}
         </span>
-        {value && <span className="tabular-nums text-slate-400">{value.length} chars</span>}
+        {value && <span className="tabular-nums text-slate-600">{value.length} chars</span>}
       </p>
       {(value || complete) && <ExactText text={value} className={className} caret={!complete} />}
     </div>
@@ -375,7 +375,7 @@ function ApplyPathBadge({ path }: { path: ApplyPath }) {
   const Icon = PATH_ICONS[path]
 
   return (
-    <span className="flex items-center gap-1 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
+    <span className="flex items-center gap-1 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
       <Icon className="size-2.5" />
       {APPLY_PATHS[path].label}
     </span>

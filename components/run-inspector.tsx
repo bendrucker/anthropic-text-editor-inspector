@@ -49,7 +49,7 @@ export function RunInspector({
       <div className="flex shrink-0 items-center justify-between px-5 py-2">
         <span className="flex items-baseline gap-2">
           <span className="text-xs font-semibold text-slate-700">Run inspector</span>
-          <span className="text-[11px] text-slate-400">
+          <span className="text-[11px] text-slate-500">
             {timeline.length === 0
               ? 'wire events and what the app did about them'
               : `${timeline.length} event${timeline.length === 1 ? '' : 's'}`}
@@ -90,7 +90,7 @@ export function RunInspector({
             onClick={() => setOpen((prior) => !prior)}
             aria-expanded={open}
             aria-controls={open ? 'run-inspector-panels' : undefined}
-            className="text-xs text-slate-400"
+            className="text-xs text-slate-500"
           >
             {open ? 'Hide' : 'Show'}
           </button>
@@ -142,7 +142,7 @@ function PanelTab({ value, children }: { value: Panel; children: ReactNode }) {
   return (
     <Tabs.Trigger
       value={value}
-      className="rounded px-2 py-0.5 text-[11px] font-medium text-slate-400 transition hover:text-slate-600 data-[state=active]:bg-slate-200 data-[state=active]:text-slate-700"
+      className="rounded px-2 py-0.5 text-[11px] font-medium text-slate-500 transition hover:text-slate-700 data-[state=active]:bg-slate-200 data-[state=active]:text-slate-700"
     >
       {children}
     </Tabs.Trigger>
@@ -157,7 +157,7 @@ function BufferPanel({ buffer }: { buffer: BufferState | null }) {
   if (!buffer) {
     return (
       <div className="px-4 py-3">
-        <p className="text-[11px] text-slate-400">
+        <p className="text-[11px] text-slate-500">
           The tool-input buffer appears here as fragments arrive.
         </p>
       </div>
@@ -180,7 +180,7 @@ function BufferPanel({ buffer }: { buffer: BufferState | null }) {
       <Field label="old_str" value={buffer.oldStr} complete={buffer.oldStrComplete} />
       <Field label="new_str" value={buffer.newStr} complete={buffer.newStrComplete} />
 
-      <p className="text-[10px] leading-relaxed text-slate-400">
+      <p className="text-[10px] leading-relaxed text-slate-600">
         Declared before <span className="font-mono">new_str</span> in the schema, so{' '}
         <span className="font-mono">old_str</span> closes first and the target is known while the
         replacement is still arriving.
@@ -194,10 +194,10 @@ function Field({ label, value, complete }: { label: string; value?: string; comp
     <div>
       <p className="mb-1 flex items-center gap-2 text-[11px] font-medium text-slate-500">
         <span className="font-mono">{label}</span>
-        <span className={complete ? 'text-emerald-600' : 'text-blue-500'}>
+        <span className={complete ? 'text-emerald-700' : 'text-blue-600'}>
           {value === undefined ? 'not started' : complete ? 'closed' : 'streaming'}
         </span>
-        {value !== undefined && <span className="text-slate-400">{value.length} chars</span>}
+        {value !== undefined && <span className="text-slate-600">{value.length} chars</span>}
       </p>
       <pre className="rounded border border-slate-200 bg-white px-2 py-1.5 font-mono text-[10px] leading-relaxed wrap-break-word whitespace-pre-wrap text-slate-700">
         {value ?? ''}

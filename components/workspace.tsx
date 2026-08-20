@@ -28,7 +28,7 @@ export function Workspace() {
             onGenerate={doc.generate}
             disabled={doc.running}
           />
-          <span className="truncate text-xs text-slate-400">{doc.document.description}</span>
+          <span className="truncate text-xs text-slate-500">{doc.document.description}</span>
         </div>
 
         <div className="flex items-center gap-4">
