@@ -14,6 +14,12 @@
  * Generated documents are checked the same way. They are built to be canonical
  * by construction, and this is what keeps that true.
  *
+ * The trap panel's one assertion is checked alongside them: every needle it
+ * offers has to be refused by the matcher on its own, and the count the panel
+ * prints has to be the count the matcher found. What no static check can cover
+ * is the other half of the old claim, that the model sends the bare needle and
+ * is refused. It mostly does not, which is why the panel no longer says so.
+ *
  * The library's lead prompts are checked last. Each quotes a run of prose that
  * has to resolve to a streaming inline edit, and the library verifies that as it
  * loads, so importing it is the check.
@@ -23,7 +29,8 @@ import { MarkdownManager } from '@tiptap/markdown'
 import StarterKit from '@tiptap/starter-kit'
 import { TableKit } from '@tiptap/extension-table'
 import { generateDocument } from '../lib/generate-document'
-import { deriveTraps } from '../lib/traps'
+import { briefTraps, deriveTraps } from '../lib/traps'
+import { locateEdit } from '../lib/str-replace'
 
 const manager = new MarkdownManager({ extensions: [StarterKit, TableKit] })
 
@@ -76,8 +83,20 @@ for (const { name, source } of subjects) {
   const idempotent = twice === once
   // A document nobody can trip over teaches nothing, so an empty set is a defect.
   const traps = deriveTraps(once)
+  const overstated = traps.filter((trap) => {
+    const outcome = locateEdit(once, trap.needle)
+    return outcome.ok || outcome.matches.length !== trap.matches
+  })
+  // The sentence prints numbers, so the numbers have to come from the matcher.
+  const claimed = briefTraps(traps).guarantee.match(/\d+/g)?.map(Number) ?? []
+  const invented = claimed.filter((count) => !traps.some((trap) => trap.matches === count))
 
-  const ok = sourceStable && idempotent && traps.length > 0
+  const ok =
+    sourceStable &&
+    idempotent &&
+    traps.length > 0 &&
+    overstated.length === 0 &&
+    invented.length === 0
   if (!ok) failed++
 
   console.log(
@@ -97,6 +116,18 @@ for (const { name, source } of subjects) {
   }
   if (traps.length === 0) {
     console.log('  no repeated string found, so the document offers no ambiguity trap')
+  }
+  for (const trap of overstated) {
+    const outcome = locateEdit(once, trap.needle)
+    console.log(
+      `  the panel would claim "${trap.needle}" occupies ${trap.matches} places,` +
+        ` but the matcher ${outcome.ok ? 'accepts it' : `finds ${outcome.matches.length}`}`,
+    )
+  }
+  if (invented.length > 0) {
+    console.log(
+      `  the panel prints ${invented.join(', ')}, which no derived trap accounts for`,
+    )
   }
 }
 

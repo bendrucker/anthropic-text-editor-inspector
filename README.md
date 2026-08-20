@@ -52,7 +52,7 @@ sequenceDiagram
 
 ## Controls
 
-The tool setup row picks the tool and carries three switches: **Prompt rules**, **old_str first**, and **Eager streaming**. Hovering one shows what both of its positions do and marks the one in force. The last two go inert under the built-in tool, which owns its own schema. Turn **Prompt rules** off before trying the traps: the model then learns uniqueness and table padding from tool results, and the retry loop runs where you can watch it. Model, effort, and fast mode sit in the header.
+The tool setup row picks the tool and carries three switches: **Prompt rules**, **old_str first**, and **Eager streaming**. Hovering one shows what both of its positions do and marks the one in force. The last two go inert under the built-in tool, which owns its own schema. **Prompt rules** turns out to carry very little: across 144 runs on the ambiguity traps it moved the rejection rate by nothing worth reporting, because the model satisfies uniqueness and table padding from its own training either way. Model, effort, and fast mode sit in the header.
 
 ## Editor Tool
 
