@@ -34,7 +34,10 @@ export function DocumentPane({ initialMarkdown, locked, onEditor, onAskAboutSele
   return (
     <div data-document-pane className="relative flex h-full min-h-0 flex-col">
       <div data-document-scroll className="relative flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-3xl px-12 py-14">
+        {/* The horizontal padding sets line length and holds at every size. The
+            vertical padding is margin, and on a short viewport this pane can be
+            224px tall, where a fixed `py-14` would spend half of it on air. */}
+        <div className="mx-auto max-w-3xl px-12 py-[clamp(1.5rem,4vh,3.5rem)]">
           <EditorContent editor={editor} />
         </div>
 
