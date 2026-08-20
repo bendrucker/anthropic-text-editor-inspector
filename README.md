@@ -4,6 +4,9 @@
 
 **[Open Web App](https://bendrucker.github.io/anthropic-text-editor-inspector/)**
 
+<img width="1862" height="1212" alt="Screenshot 2026-08-19 at 20 29 55" src="https://github.com/user-attachments/assets/ffac79d9-46bb-4f1a-9707-919d1c41a14e" />
+
+
 ## Getting Started
 
 This application is bring-your-own-key (BYOK). You must first create an [API key](https://platform.claude.com/dashboard) from your Claude organization. This key is stored on your device and only sent to Anthropic's servers.
