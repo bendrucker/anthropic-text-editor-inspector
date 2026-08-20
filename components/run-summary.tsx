@@ -43,12 +43,21 @@ function spansOf(timing: EditTiming) {
 
 type SpanKey = keyof ReturnType<typeof spansOf>
 
+/**
+ * Dark enough to read against the track, which is a requirement these tones only
+ * acquired once the bars stopped filling it.
+ *
+ * While every bar ran to its own total the track was never visible, so the fills
+ * were decoration and their contrast against it decided nothing. Sharing one
+ * denominator makes the unfilled remainder the tail, and where a fill stops is
+ * now the reading. That boundary carries meaning, so it owes 3:1.
+ */
 const TONES: Record<SpanKey, string> = {
-  retries: 'bg-slate-300',
-  connect: 'bg-slate-300',
-  preamble: 'bg-amber-300',
-  target: 'bg-blue-400',
-  render: 'bg-emerald-500',
+  retries: 'bg-slate-500',
+  connect: 'bg-slate-500',
+  preamble: 'bg-amber-700',
+  target: 'bg-blue-600',
+  render: 'bg-emerald-700',
 }
 
 /**
@@ -135,6 +144,7 @@ function RunBar({ run, timing, scaleMs }: { run: Run; timing: EditTiming; scaleM
   const spans = spansOf(timing)
   const keys: SpanKey[] = ['retries', 'connect', 'preamble', 'target', 'render']
   const endMs = timing.totalMs ?? timing.targetMs
+  const overFill = (timing.settledMs ?? 0) > endMs
 
   return (
     // `rounded-sm`, not a pill: a radius of half the height masks that much off
@@ -165,8 +175,12 @@ function RunBar({ run, timing, scaleMs }: { run: Run; timing: EditTiming; scaleM
           style={{ left: `${(spans.retries / scaleMs) * 100}%` }}
         />
       )}
+      {/* The mark lands on bare track when the run outlived the document and
+          inside the render fill when the document outlived the run. Those two
+          backdrops need opposite ink for the mark to be visible against either,
+          and the timings already say which case this is. */}
       <div
-        className="absolute inset-y-0 w-px bg-slate-400"
+        className={`absolute inset-y-0 w-px ${overFill ? 'bg-white' : 'bg-slate-500'}`}
         style={{ left: `calc(${Math.min((endMs / scaleMs) * 100, 100)}% - 1px)` }}
       />
     </div>
@@ -199,13 +213,13 @@ function RenderBar({ timing }: { timing: EditTiming }) {
       {waiting !== null && landing !== null && (
         <div aria-hidden className="flex h-2.5 overflow-hidden rounded-sm bg-slate-100">
           <div
-            className="shrink-0 bg-slate-400"
+            className="shrink-0 bg-slate-500"
             style={{ width: `${(gap / window) * 100}%`, minWidth: '3px' }}
           />
           <div style={{ width: `${(waiting / window) * 100}%` }} />
           {landing > 0 && (
             <div
-              className="shrink-0 bg-emerald-500"
+              className="shrink-0 bg-emerald-700"
               style={{ width: `${(landing / window) * 100}%`, minWidth: '3px' }}
             />
           )}
@@ -351,6 +365,23 @@ function RunRow({
  */
 const VISIBLE_RUNS = 5
 
+/**
+ * One denominator for every row: the slowest run listed, rounded up to the next
+ * whole second.
+ *
+ * A bar normalised to its own total draws a two second run and a nine second run
+ * the same width, which is the opposite of what a list of runs is for. Taking
+ * the slowest run bare fixes that but leaves the scale sliding. Every new
+ * slowest run reshrinks the other four, and nothing on screen says the ruler
+ * moved. Rounding makes it step instead of slide, and a round number is one the
+ * heading can print, which is what turns bar length from a ranking back into a
+ * duration a reader can name.
+ */
+function barScaleMs(runs: Run[]): number {
+  const slowest = Math.max(...runs.map((run) => (run.timing ? extentOf(run.timing) : 1)), 1)
+  return Math.max(Math.ceil(slowest / 1000) * 1000, 1000)
+}
+
 /** Recent runs, so a demo can compare configurations rather than assert a number. */
 export function RunHistory({ runs }: { runs: Run[] }) {
   const [opened, setOpened] = useState<Run | null>(null)
@@ -366,22 +397,36 @@ export function RunHistory({ runs }: { runs: Run[] }) {
   }
 
   const shown = runs.slice(0, VISIBLE_RUNS)
-  // One denominator for every row. A bar normalised to its own total draws a two
-  // second run and a nine second run the same width, which is the opposite of
-  // what a list of runs is for.
-  const scaleMs = Math.max(...shown.map((run) => (run.timing ? extentOf(run.timing) : 1)), 1)
+  const scaleMs = barScaleMs(shown)
 
   return (
     <div className="min-h-0 overflow-y-auto px-4 py-3">
-      <p className="text-[11px] font-medium tracking-wide text-slate-500 uppercase">
-        Runs
-        {shown.length < runs.length && (
-          <span className="normal-case">
-            {' '}
-            · newest {shown.length} of {runs.length}
-          </span>
-        )}
-      </p>
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-[11px] font-medium tracking-wide text-slate-500 uppercase">
+          Runs
+          {shown.length < runs.length && (
+            <span className="normal-case">
+              {' '}
+              · newest {shown.length} of {runs.length}
+            </span>
+          )}
+        </p>
+        <p className="shrink-0 text-[10px] tabular-nums text-slate-600">
+          <Legend
+            explanation={
+              <>
+                Every bar below is drawn against the same {scaleMs / 1000}s, so their lengths
+                compare directly rather than each filling its own row. The scale is the slowest run
+                listed rounded up to a whole second, so a slightly slower run leaves the other bars
+                where they are. A run past {scaleMs / 1000}s steps it out and shortens all of them
+                together.
+              </>
+            }
+          >
+            bars to {scaleMs / 1000}s
+          </Legend>
+        </p>
+      </div>
       <p className="mb-2 text-[10px] text-slate-500">
         First-byte latency varies by seconds between runs. Compare the render span, not the wait.
       </p>
