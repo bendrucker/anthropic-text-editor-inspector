@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Text Editor Tool Inspector",
-  "version": "0.1.0",
+  "version": "../package.json",
   "identifier": "com.bendrucker.anthropic-text-editor-inspector",
   "build": {
     "frontendDist": "../dist",

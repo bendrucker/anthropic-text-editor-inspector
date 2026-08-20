@@ -30,6 +30,11 @@ jobs:
       - name: Conversation history
         run: bun run conversation
 
+      # Nothing at runtime reads the version, so drift between the manifests
+      # only surfaces on an installer labelled with the previous release.
+      - name: Versions agree
+        run: bun run versions
+
       - name: Build
         run: bun run build
 

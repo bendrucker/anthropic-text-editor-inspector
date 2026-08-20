@@ -11,6 +11,8 @@
     "roundtrip": "bun run scripts/roundtrip.ts",
     "typecheck": "tsc --noEmit",
     "conversation": "bun run scripts/conversation.ts",
+    "versions": "bun run scripts/versions.ts",
+    "bump": "bun run scripts/bump.ts",
     "desktop": "tauri dev",
     "desktop:build": "tauri build"
   },

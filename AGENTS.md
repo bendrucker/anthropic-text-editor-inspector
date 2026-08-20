@@ -21,3 +21,4 @@ dev server under the webview but issues its requests from Rust.
 - `bun run roundtrip` — asserts the Markdown serializer is a fixed point, which
   `str_replace` matching depends on, and that every lead prompt still resolves inline
 - `bun run conversation` — asserts what leaves the app, down to the built-in tool's declaration
+- `bun run versions` — asserts the manifests agree on one version. `bun run bump <semver>` sets it
