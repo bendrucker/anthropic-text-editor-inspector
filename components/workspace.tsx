@@ -88,7 +88,14 @@ export function Workspace() {
         disabled={doc.running}
       />
 
-      <main className="grid min-h-0 flex-1 grid-cols-[1fr_380px] overflow-hidden">
+      {/* `1fr` is `minmax(auto,1fr)`, so the document column is floored by its
+          own min-content. A wide table sets that floor, the row grows past the
+          viewport, and `overflow-hidden` clips the composer off the right edge
+          with nothing to scroll. `minmax(0,1fr)` drops the floor. Nothing new
+          has to scroll to absorb the slack: a wide table already scrolls in its
+          own `.tableWrapper`, and `data-document-scroll` is `overflow-y-auto`,
+          which computes `overflow-x` to `auto`. */}
+      <main className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_380px] overflow-hidden">
         <DocumentPane
           initialMarkdown={doc.document.markdown}
           locked={doc.running}
