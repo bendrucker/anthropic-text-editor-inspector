@@ -272,6 +272,7 @@ function EditCard({ edit, onRevert }: { edit: EditRecord; onRevert: (edit: EditR
           {edit.status === 'applied' && !edit.reverted && (
             <button
               onClick={() => onRevert(edit)}
+              title="Rewinds the document to just before this edit. Anything edited after it goes too."
               className="text-slate-500 underline-offset-2 transition hover:text-slate-700 hover:underline"
             >
               Undo
