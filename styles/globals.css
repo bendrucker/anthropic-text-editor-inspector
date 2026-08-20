@@ -13,6 +13,41 @@ body {
   color: oklch(0.28 0.02 260);
 }
 
+/* Scrollbars ---------------------------------------------------------------- */
+
+/* Four panes scroll at once during a run, and macOS draws every one of them at
+   full width as soon as a mouse is attached. At that width the gutters read as
+   structure and start competing with the content for attention. Thin, not
+   hidden: a pane that scrolls with no affordance is worse than a narrow bar. */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: oklch(0.86 0.01 265);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.72 0.015 265);
+}
+
+/* Firefox has no `::-webkit-scrollbar`, and Chrome drops the pseudo-elements
+   entirely once `scrollbar-width` is set, so the two treatments cannot both
+   apply. `scrollbar-width` also does not inherit, hence the universal selector. */
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: oklch(0.86 0.01 265) transparent;
+  }
+}
+
 /* Document surface --------------------------------------------------------- */
 
 .ProseMirror {

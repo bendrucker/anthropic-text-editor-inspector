@@ -120,12 +120,14 @@ function BufferPanel({ buffer }: { buffer: BufferState | null }) {
   }
 
   return (
+    // The panel is the only scroller in this column. Capping the blocks inside
+    // it would put a scrollbar inside a scrollbar inside 340px.
     <div className="flex min-h-0 flex-col gap-2 overflow-y-auto px-4 py-3">
       <div>
         <p className="mb-1 text-[11px] font-medium text-slate-500">
           Accumulated buffer · {buffer.fragments} fragments · {buffer.buffer.length} chars
         </p>
-        <pre className="max-h-24 overflow-auto rounded border border-slate-200 bg-white px-2 py-1.5 font-mono text-[10px] leading-relaxed break-all whitespace-pre-wrap text-slate-600">
+        <pre className="rounded border border-slate-200 bg-white px-2 py-1.5 font-mono text-[10px] leading-relaxed break-all whitespace-pre-wrap text-slate-600">
           {buffer.buffer}
         </pre>
       </div>
@@ -152,7 +154,7 @@ function Field({ label, value, complete }: { label: string; value?: string; comp
         </span>
         {value !== undefined && <span className="text-slate-400">{value.length} chars</span>}
       </p>
-      <pre className="max-h-20 overflow-auto rounded border border-slate-200 bg-white px-2 py-1.5 font-mono text-[10px] leading-relaxed whitespace-pre-wrap text-slate-700">
+      <pre className="rounded border border-slate-200 bg-white px-2 py-1.5 font-mono text-[10px] leading-relaxed wrap-break-word whitespace-pre-wrap text-slate-700">
         {value ?? ''}
       </pre>
     </div>
