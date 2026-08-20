@@ -3,8 +3,8 @@
  *
  * A browser build can only offer localStorage, which is readable by any script
  * running on the origin. The desktop build reaches the OS credential store
- * through Rust, which is why callers go through this seam rather than touching
- * storage directly. Reads are async because the Keychain is.
+ * through Rust, which is why callers go through this seam. Reads are async
+ * because the Keychain is.
  *
  * A dev server started with `ANTHROPIC_API_KEY` set authenticates for the
  * browser, so there is no key here at all.
@@ -21,8 +21,8 @@ export interface KeyStore {
   /** Where a key given to this build ends up, shown to the user before they paste one. */
   readonly description: string
   /**
-   * False when the key comes from the environment rather than the user, which
-   * leaves nothing to paste or remove.
+   * False when the key comes from the environment, which leaves nothing to
+   * paste or remove.
    */
   readonly editable: boolean
 }
