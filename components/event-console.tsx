@@ -27,16 +27,15 @@ export function EventConsole({ timeline }: EventConsoleProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [following, setFollowing] = useState(true)
 
-  // A shorter timeline than last render means a new run, a replay, or another
-  // document. Whatever the reader had scrolled away to read is gone, and the
-  // ids restart, so anything they had opened would reopen on an unrelated row.
-  const [priorCount, setPriorCount] = useState(timeline.length)
-  if (timeline.length !== priorCount) {
-    setPriorCount(timeline.length)
-    if (timeline.length < priorCount) {
-      setFollowing(true)
-      setExpanded(new Set())
-    }
+  // A run only ever appends, so a different entry at the head means a new run, a
+  // replay, or another document. Whatever the reader had scrolled away to read
+  // is gone, and the ids restart, so anything they had opened would reopen on an
+  // unrelated row.
+  const [lead, setLead] = useState(timeline[0])
+  if (timeline[0] !== lead) {
+    setLead(timeline[0])
+    setFollowing(true)
+    setExpanded(new Set())
   }
 
   const census = useMemo(() => tally(timeline), [timeline])
@@ -51,10 +50,11 @@ export function EventConsole({ timeline }: EventConsoleProps) {
     })
 
     // Timings come off the full timeline, so a filtered row still reports the
-        // wait that actually preceded it.
+    // wait that actually preceded it.
     const stamps = new Map<string, Stamp>()
     for (const [index, entry] of timeline.entries()) {
       stamps.set(entry.id, {
+        index,
         atMs: entry.atMs,
         gapMs: entry.atMs - (timeline[index - 1]?.atMs ?? 0),
         stamped: index === 0 || entry.atMs > 0,
@@ -101,7 +101,7 @@ export function EventConsole({ timeline }: EventConsoleProps) {
             tone={source === 'wire' ? 'wire' : 'plain'}
             count={census.sources[source]}
             title={source === 'wire' ? 'Events that arrived on the wire' : 'Decisions this app made'}
-            onClick={() => setMutedSources(without(mutedSources, source))}
+            onClick={() => setMutedSources(toggled(mutedSources, source))}
           >
             {source}
           </Chip>
@@ -135,7 +135,7 @@ export function EventConsole({ timeline }: EventConsoleProps) {
                 key={name}
                 checked={!mutedNames.has(name)}
                 count={count}
-                onChange={() => setMutedNames(without(mutedNames, name))}
+                onChange={() => setMutedNames(toggled(mutedNames, name))}
               >
                 <span className="font-mono">{name}</span>
               </PopoverCheck>
@@ -591,7 +591,7 @@ function haystack(entry: TimelineEntry): string {
   return `${entry.label} ${entry.detail ?? ''} ${entry.raw ?? ''}`.toLowerCase()
 }
 
-function without<T>(muted: ReadonlySet<T>, key: T): ReadonlySet<T> {
+function toggled<T>(muted: ReadonlySet<T>, key: T): ReadonlySet<T> {
   const next = new Set(muted)
   if (!next.delete(key)) next.add(key)
   return next
@@ -615,6 +615,7 @@ function tally(timeline: TimelineEntry[]): Census {
 }
 
 interface Stamp {
+  index: number
   atMs: number
   gapMs: number
   stamped: boolean
@@ -646,7 +647,18 @@ function single(entry: TimelineEntry, stamps: Map<string, Stamp>): EntryRow {
  * Collapses neighbouring events that share a name and a source, which is what a
  * run of `input_json_delta` is. A run of one stays a plain row, and anything
  * that went wrong stays a row of its own so folding can never bury it.
+ *
+ * Neighbouring means neighbouring in the run, not in the filtered list. Two
+ * fragment runs with a hidden `message_delta` between them are two segments of
+ * the stream, and a group that spliced their fragments together would read as
+ * one thing the model never sent.
  */
+function adjacent(prior: TimelineEntry, entry: TimelineEntry, stamps: Map<string, Stamp>): boolean {
+  const before = stamps.get(prior.id)
+  const after = stamps.get(entry.id)
+  return before !== undefined && after !== undefined && after.index === before.index + 1
+}
+
 function fold(entries: TimelineEntry[], stamps: Map<string, Stamp>): ConsoleRow[] {
   const rows: ConsoleRow[] = []
   let run: TimelineEntry[] = []
@@ -669,13 +681,14 @@ function fold(entries: TimelineEntry[], stamps: Map<string, Stamp>): ConsoleRow[
   }
 
   for (const entry of entries) {
-    const lead = run[0]
+    const prior = run[run.length - 1]
     const same =
-      lead !== undefined &&
-      lead.source === entry.source &&
-      splitLabel(lead.label).name === splitLabel(entry.label).name &&
+      prior !== undefined &&
+      prior.source === entry.source &&
+      splitLabel(prior.label).name === splitLabel(entry.label).name &&
       entry.tone !== 'bad' &&
-      lead.tone !== 'bad'
+      prior.tone !== 'bad' &&
+      adjacent(prior, entry, stamps)
     if (!same) flush()
     run.push(entry)
   }
