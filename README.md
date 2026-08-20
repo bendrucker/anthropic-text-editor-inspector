@@ -74,20 +74,26 @@ An organization with custom data retention gets browser requests refused:
 
 > CORS requests are not allowed for this Organization because of custom retention settings.
 
-Nothing in the app changes that, and the hosted link cannot work around it. The request has to reach the API from a server, so run the inspector locally instead. The dev server forwards it:
+Nothing in the app changes that, and the hosted link cannot work around it. The request has to leave something other than a browser. There are two ways to get one.
+
+**The desktop build** is the easy one. Rust makes the request, so there is no origin to refuse and nothing to configure. Download it from [Releases](https://github.com/bendrucker/anthropic-text-editor-inspector/releases). It stores your key in the Keychain instead of `localStorage`.
+
+**Running it locally** works without downloading anything, because the dev server forwards the request for you:
 
 ```bash
 bun install
 bun run dev
 ```
 
-Your key still lives in your browser and still travels no further than your own machine. A build meant for somewhere other than a developer's laptop can point at its own proxy with `VITE_ANTHROPIC_BASE_URL`.
+Your key still lives in your browser and still travels no further than your own machine. A web build hosted somewhere other than a developer's laptop can point at its own proxy with `VITE_ANTHROPIC_BASE_URL`.
 
 ## Running It
 
 ```bash
 bun run build          # dist/, any static host
 bun run build:single   # one self-contained index.html
+bun run desktop        # the Tauri app, against the dev server
+bun run desktop:build  # a .dmg
 bun run roundtrip      # serializer fixed-point check
 bun run conversation   # history threading check
 bun run typecheck

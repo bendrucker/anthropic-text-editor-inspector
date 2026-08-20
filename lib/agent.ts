@@ -3,7 +3,8 @@ import { locateEdit, applyEdit, type Match } from './str-replace'
 import { scanEditInput } from './partial-json'
 import { findModel, DEFAULT_MODEL, DEFAULT_EFFORT, type EffortChoice } from './models'
 import type { BufferState, TimelineEntry } from './timeline'
-import { BASE_URL, IS_DIRECT } from './endpoint'
+import { BASE_URL, IS_DIRECT, IS_TAURI } from './endpoint'
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 
 /**
  * The edit loop, running in the browser against the user's own key.
@@ -180,8 +181,11 @@ export function createClient(apiKey: string) {
     apiKey,
     baseURL: BASE_URL,
     dangerouslyAllowBrowser: true,
-    // The header only means anything on a direct call. Through a proxy the
-    // request stops being a browser request before the API sees it.
+    // Rust issues the request and streams the response back over IPC, so the
+    // webview never opens a connection the API could refuse on origin.
+    ...(IS_TAURI ? { fetch: tauriFetch } : {}),
+    // The header only means anything on a direct call. Through a proxy or from
+    // Rust the request stops being a browser request before the API sees it.
     ...(IS_DIRECT
       ? { defaultHeaders: { 'anthropic-dangerous-direct-browser-access': 'true' } }
       : {}),
