@@ -13,6 +13,10 @@
  *
  * Generated documents are checked the same way. They are built to be canonical
  * by construction, and this is what keeps that true.
+ *
+ * The library's lead prompts are checked last. Each quotes a run of prose that
+ * has to resolve to a streaming inline edit, and the library verifies that as it
+ * loads, so importing it is the check.
  */
 import { readFileSync, readdirSync } from 'node:fs'
 import { MarkdownManager } from '@tiptap/markdown'
@@ -96,5 +100,21 @@ for (const { name, source } of subjects) {
   }
 }
 
+/**
+ * The library is imported here rather than at the top because a source that has
+ * stopped being canonical also breaks the block mapping its lead prompts resolve
+ * through, and that divergence is the root cause worth reading first.
+ */
+let leadPrompts: string
+let promptsOk = true
+try {
+  const { SAMPLES } = await import('../lib/library')
+  leadPrompts = `${SAMPLES.length} lead prompts resolve inline`
+} catch (error) {
+  promptsOk = false
+  leadPrompts = `lead prompt unusable: ${error instanceof Error ? error.message : String(error)}`
+}
+
 console.log(`\n${subjects.length - failed}/${subjects.length} documents stable`)
-process.exit(failed === 0 ? 0 : 1)
+console.log(leadPrompts)
+process.exit(failed === 0 && promptsOk ? 0 : 1)
