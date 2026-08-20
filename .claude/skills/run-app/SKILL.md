@@ -44,14 +44,18 @@ A dev server serves the checkout it started in, and many of them run here at onc
 Confirming the port number is not enough, because two checkouts answer the same URL with different source. Plant a token nothing else can produce, then read the served source back:
 
 ```
-printf '\n// probe-%s\n' "$(git rev-parse --short HEAD)" >> lib/paint.ts
-curl -s http://localhost:<port>/lib/paint.ts | grep -c 'probe-'
+printf '\n// probe-%s\n' "$(git rev-parse --short HEAD)" >> <module>
+curl -s http://localhost:<port>/<module> | grep -c 'probe-'
 ```
 
-Plant one rather than grepping a value already in the source. A distinctive-looking string can be identical in the checkout next door, so it returns a match that proves nothing. Clean up by deleting just the planted line, not `git checkout lib/paint.ts`: the probed file is often the file you're already editing, and `git checkout` silently discards those edits along with the token.
+Plant one rather than grepping a value already in the source. A distinctive-looking string can be identical in the checkout next door, so it returns a match that proves nothing.
+
+Plant in a module you are not editing. The probe only has to prove which checkout is serving, so any served module works, and cleanup is then a plain `git checkout <module>`.
+
+When no untouched module is served, plant in the file under test instead and delete just the planted line, not the whole file: `git checkout` would discard your edits along with the token.
 
 ```
-sed -i '' '/probe-/d' lib/paint.ts
+sed -i '' '/probe-/d' <module>
 ```
 
 A discriminator on a *rendered* value can pass while the source belongs to another checkout. Grid tracks measured at 509.64 and then 491 across a viewport change read as responsive, and neither number came from the build under test. Served source cannot move like that.
