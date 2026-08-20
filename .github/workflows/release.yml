@@ -20,9 +20,12 @@ jobs:
 
       # One universal DMG covers both architectures, so nobody has to know
       # which Mac they have.
+      #
+      # This only builds. Publishing is a separate step below, so a manual run
+      # exercises everything a tag does apart from creating the release.
       - uses: tauri-apps/tauri-action@v0
+        id: build
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
@@ -31,18 +34,31 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           args: --target universal-apple-darwin
-          # Empty on a manual run, which builds and signs without cutting a
-          # release. That makes the signing and notarization credentials
-          # testable before a tag exists.
-          tagName: ${{ github.event_name == 'push' && github.ref_name || '' }}
-          releaseName: ${{ github.event_name == 'push' && github.ref_name || '' }}
-          releaseDraft: true
-          releaseBody: |
-            A signed, notarized macOS build. The web version is at
-            https://bendrucker.github.io/anthropic-text-editor-inspector/
 
-            The desktop build calls the API from Rust, so it works with keys
-            whose organization refuses browser requests.
+      # Tauri notarizes and staples the app, then builds the disk image around
+      # it and never submits that. Opening an unstapled image sends Gatekeeper
+      # to the network, which fails confusingly on a machine that is offline or
+      # behind a filtering proxy. One submission covers the image and the app
+      # inside it.
+      - name: Notarize the disk image
+        id: dmg
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ARTIFACT_PATHS: ${{ steps.build.outputs.artifactPaths }}
+        run: |
+          dmg=$(jq -er 'map(select(endswith(".dmg"))) | first' <<< "$ARTIFACT_PATHS")
+          xcrun notarytool submit "$dmg" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+          xcrun stapler staple "$dmg"
+          # `submit --wait` exits zero on a rejected submission, so the staple
+          # and this check are what actually fail the job.
+          xcrun stapler validate "$dmg"
+          echo "path=$dmg" >> "$GITHUB_OUTPUT"
 
       # A manual run produces no release, so keep the DMG reachable for
       # checking that the signature and notarization survived CI.
@@ -50,5 +66,20 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: macos-universal-dmg
-          path: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+          path: ${{ steps.dmg.outputs.path }}
           if-no-files-found: error
+
+      - name: Draft the release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DMG: ${{ steps.dmg.outputs.path }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "$DMG" \
+            --draft \
+            --title "$GITHUB_REF_NAME" \
+            --notes 'A signed, notarized macOS build. The web version is at
+          https://bendrucker.github.io/anthropic-text-editor-inspector/
+
+          The desktop build calls the API from Rust, so it works with keys
+          whose organization refuses browser requests.'
