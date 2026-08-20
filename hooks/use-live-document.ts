@@ -99,6 +99,24 @@ interface StreamState {
   newStrClosed: boolean
 }
 
+/**
+ * Why a run left the document alone.
+ *
+ * A closed set rather than the tool result's own wording. That text is written
+ * for the model that has to recover from it, it is already printed in the
+ * console beside the call it refused, and the summary needs a fact it can group
+ * runs by rather than a sentence it has to reprint.
+ */
+export type NoEditReason =
+  /** The model answered and never opened a tool call. */
+  | 'never-called'
+  /** `old_str` matched nothing, the one refusal a model cannot resolve by looking harder. */
+  | 'no-target'
+  /** `old_str` matched more than one place, so there was no single target to replace. */
+  | 'ambiguous'
+  /** Refused before the matcher saw a target: a command this document has no answer for, or input that never became valid JSON. */
+  | 'refused'
+
 /** One completed request, kept so configurations can be compared in a demo. */
 export interface Run {
   model: string
@@ -106,6 +124,12 @@ export interface Run {
   effort: EffortChoice['id']
   timeToFirstEditMs: number | null
   timing: EditTiming | null
+  /**
+   * Set on exactly the runs `timeToFirstEditMs` is null on. `timing` cannot
+   * carry this: a refused run borrows the timing of the attempt that failed, so
+   * the spans it holds are real and say nothing about whether anything landed.
+   */
+  noEdit: NoEditReason | null
   prompt: string
 }
 
@@ -571,6 +595,9 @@ export function useLiveDocument() {
       // which leaves the final attempt, matching how `firstTiming` reads its
       // spans off the turn that did the work rather than the run's first turn.
       let lastRefused: EditTiming | null = null
+      // Why that attempt was refused, on the same overwrite rule and for the
+      // same reason: the last refusal is the one the run gave up on.
+      let lastRefusal: NoEditReason | null = null
       // The stream itself rather than its id, because the end of its turn
       // commits and removes it well before the paint below is read.
       let firstStream: StreamState | null = null
@@ -726,6 +753,12 @@ export function useLiveDocument() {
 
         onEditRejected(event) {
           lastRefused = started.get(event.id)?.timing ?? lastRefused
+          // `matches` is every place `old_str` did match, so it is empty both
+          // when the matcher found no target and when the call never reached the
+          // matcher. `oldStr` separates those: the paths that refuse a call
+          // outright have no target to report.
+          lastRefusal =
+            event.matches.length > 1 ? 'ambiguous' : event.oldStr ? 'no-target' : 'refused'
           started.delete(event.id)
           record({
             atMs: event.elapsedMs,
@@ -825,6 +858,10 @@ export function useLiveDocument() {
                   ...(settledMs === null ? {} : { settledMs }),
                   totalMs: event.elapsedMs,
                 },
+                // Keyed off `firstEditMs` rather than off `attempted`, because
+                // a refused run has both a timing and a reason and only one of
+                // those says an edit never landed.
+                noEdit: firstEditMs === null ? (lastRefusal ?? 'never-called') : null,
                 prompt,
               },
               ...prior,
