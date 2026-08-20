@@ -1,7 +1,6 @@
-import type { ReactNode } from 'react'
 import { SYNTHETIC_PATH, type EditorTool } from '@/lib/agent'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
-import { Tooltip } from './ui/tooltip'
+import { Tooltip, TooltipStates, type ToggleState } from './ui/tooltip'
 
 interface ToolSetupProps {
   editorTool: EditorTool
@@ -33,7 +32,12 @@ interface Switch {
   label: string
   /** What the run does when the switch is off, which is the interesting half. */
   offLabel: string
-  explanation: ReactNode
+  /**
+   * Both halves, so the tooltip can name the live one. Each pair answers the
+   * same questions in the same order, which is what makes them comparable at a
+   * glance.
+   */
+  states: Record<'on' | 'off', ToggleState>
   /** True for a switch that exists only because this app writes the schema. */
   schemaBound?: boolean
 }
@@ -43,44 +47,83 @@ const SWITCHES: Switch[] = [
     key: 'guardrails',
     label: 'Prompt rules',
     offLabel: 'Prompt rules off',
-    explanation: (
-      <>
-        On, the system prompt pre-teaches the two constraints a first attempt usually trips over:
-        that <code>old_str</code> must match exactly once, and that table cells carry alignment
-        padding that has to be reproduced. The model rarely fails, which also means the retry loop
-        never runs where you can watch it. Off, the same constraints reach the model only as tool
-        results after a rejected edit, so the console shows it learning them mid-run.
-      </>
-    ),
+    states: {
+      on: {
+        name: 'On',
+        body: (
+          <>
+            The system prompt states both constraints up front: <code>old_str</code> must match
+            exactly once, and table cells carry alignment padding that has to be reproduced. The
+            first edit usually lands, so the retry loop never runs where you can watch it.
+          </>
+        ),
+      },
+      off: {
+        name: 'Off',
+        body: (
+          <>
+            The same two constraints reach the model only as tool results, after an edit has already
+            been rejected. The console shows it learning them mid-run.
+          </>
+        ),
+      },
+    },
   },
   {
     key: 'oldStrFirst',
     label: 'old_str first',
     offLabel: 'new_str first',
     schemaBound: true,
-    explanation: (
-      <>
-        Models emit tool input in the order the schema declares the properties. Declaring{' '}
-        <code>old_str</code> first means the target text is known and can be highlighted while the
-        replacement is still streaming in. Flip the order and the document sits inert until the last
-        fragment arrives, because there is nothing to point at until then. That models follow schema
-        order is observed behavior, not a guarantee the API makes.
-      </>
-    ),
+    states: {
+      on: {
+        name: <code>old_str</code>,
+        body: (
+          <>
+            The schema declares <code>old_str</code> before <code>new_str</code>, and models emit
+            tool input in declaration order. The target is known while the replacement is still
+            streaming, so the match highlights before the edit completes. That ordering is observed
+            behavior rather than a guarantee the API makes.
+          </>
+        ),
+      },
+      off: {
+        name: <code>new_str</code>,
+        body: (
+          <>
+            The replacement arrives before anything says where it goes. Nothing can be highlighted
+            until the last fragment lands, so the document sits inert for the whole stream.
+          </>
+        ),
+      },
+    },
   },
   {
     key: 'eagerStreaming',
     label: 'Eager streaming',
     offLabel: 'Eager streaming off',
     schemaBound: true,
-    explanation: (
-      <>
-        On, <code>eager_input_streaming</code> sends unvalidated <code>input_json_delta</code>{' '}
-        fragments as the model types them, which is what lets the buffer be scanned for a field that
-        has not closed yet. Off, tool input lands in validated bursts, so there is no partial{' '}
-        <code>old_str</code> to read and nothing can render before the edit is complete.
-      </>
-    ),
+    states: {
+      on: {
+        name: 'On',
+        body: (
+          <>
+            <code>eager_input_streaming</code> sends <code>input_json_delta</code> fragments
+            unvalidated, as the model types them, so the buffer can be scanned for a field that has
+            not closed yet. The replacement paints across many frames. The edit finishes no sooner.
+            What changes is that you can watch it arrive.
+          </>
+        ),
+      },
+      off: {
+        name: 'Off',
+        body: (
+          <>
+            Tool input arrives in validated bursts, so there is no partial <code>old_str</code> to
+            read. The replacement's first paint and its settled state land in the same frame.
+          </>
+        ),
+      },
+    },
   },
 ]
 
@@ -134,7 +177,13 @@ export function ToolSetup(props: ToolSetupProps) {
         return (
           <Tooltip
             key={entry.key}
-            content={inert ? NOT_APPLICABLE : entry.explanation}
+            content={
+              inert ? (
+                NOT_APPLICABLE
+              ) : (
+                <TooltipStates states={entry.states} current={on ? 'on' : 'off'} />
+              )
+            }
             disabled={props.disabled || inert}
           >
             <button
