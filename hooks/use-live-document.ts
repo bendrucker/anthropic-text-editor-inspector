@@ -13,7 +13,7 @@ import { runEdit, describeFailure, type EditTiming, type ConversationTurn } from
 import type { BufferState, TimelineEntry } from '@/lib/timeline'
 import { instrument, dispatch, type RecordedCall } from '@/lib/recording'
 import type { AgentHandlers } from '@/lib/agent'
-import { browserKeyStore } from '@/lib/api-key'
+import { keyStore } from '@/lib/api-key'
 
 export interface ChatMessage {
   role: 'user' | 'assistant'
@@ -82,15 +82,27 @@ export function useLiveDocument() {
   const replayTimers = useRef<number[]>([])
   const abortRef = useRef<AbortController | null>(null)
 
-  // Read once on mount so server-side rendering and hydration cannot disagree.
+  // Read once on mount. The Keychain answers asynchronously, so a stale reply
+  // after the user has already typed a key would otherwise overwrite it.
   useEffect(() => {
-    setApiKeyState(browserKeyStore.read())
+    let current = true
+
+    async function restoreStoredKey() {
+      const stored = await keyStore.read()
+      if (current && stored) setApiKeyState(stored)
+    }
+
+    void restoreStoredKey()
+
+    return () => {
+      current = false
+    }
   }, [])
 
-  const setApiKey = useCallback((key: string | null) => {
-    if (key) browserKeyStore.write(key)
-    else browserKeyStore.clear()
+  const setApiKey = useCallback(async (key: string | null) => {
     setApiKeyState(key)
+    if (key) await keyStore.write(key)
+    else await keyStore.clear()
   }, [])
 
   // Fast mode is unavailable on most models, so a model change can invalidate it.

@@ -1,0 +1,54 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  desktop:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: ./.github/actions/desktop-toolchain
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      # One universal DMG covers both architectures, so nobody has to know
+      # which Mac they have.
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          args: --target universal-apple-darwin
+          # Empty on a manual run, which builds and signs without cutting a
+          # release. That makes the signing and notarization credentials
+          # testable before a tag exists.
+          tagName: ${{ github.event_name == 'push' && github.ref_name || '' }}
+          releaseName: ${{ github.event_name == 'push' && github.ref_name || '' }}
+          releaseDraft: true
+          releaseBody: |
+            A signed, notarized macOS build. The web version is at
+            https://bendrucker.github.io/anthropic-text-editor-inspector/
+
+            The desktop build calls the API from Rust, so it works with keys
+            whose organization refuses browser requests.
+
+      # A manual run produces no release, so keep the DMG reachable for
+      # checking that the signature and notarization survived CI.
+      - if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-universal-dmg
+          path: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+          if-no-files-found: error

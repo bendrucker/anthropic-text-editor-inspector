@@ -35,3 +35,20 @@ jobs:
 
       - name: Build single file
         run: bun run build:single
+
+  # The desktop build is what organizations that refuse browser requests use, so
+  # it cannot be allowed to break unnoticed between releases.
+  desktop:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # No extra targets: this is a host-only smoke test. The release build
+      # installs both Darwin targets because it bundles a universal binary.
+      - uses: ./.github/actions/desktop-toolchain
+
+      # `generate_context!` reads the bundle config, which points at dist/.
+      - run: bun run build
+
+      - name: Check the desktop crate
+        run: cargo check --manifest-path src-tauri/Cargo.toml

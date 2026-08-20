@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import * as Popover from '@radix-ui/react-popover'
-import { browserKeyStore, looksLikeAnthropicKey } from '@/lib/api-key'
+import { keyStore, looksLikeAnthropicKey } from '@/lib/api-key'
 
 interface ApiKeyControlProps {
   apiKey: string | null
@@ -42,7 +42,7 @@ export function ApiKeyControl({ apiKey, onApiKey }: ApiKeyControlProps) {
           {apiKey ? (
             <div className="space-y-3">
               <p className="font-mono text-xs text-slate-500">{mask(apiKey)}</p>
-              <p className="text-xs leading-relaxed text-slate-500">{browserKeyStore.description}</p>
+              <p className="text-xs leading-relaxed text-slate-500">{keyStore.description}</p>
               <button
                 onClick={() => {
                   onApiKey(null)
@@ -67,7 +67,7 @@ export function ApiKeyControl({ apiKey, onApiKey }: ApiKeyControlProps) {
               <p className={`text-xs leading-relaxed ${malformed ? 'text-amber-700' : 'text-slate-500'}`}>
                 {malformed
                   ? 'That does not look like an Anthropic key, but you can save it anyway.'
-                  : browserKeyStore.description}
+                  : keyStore.description}
               </p>
               <button
                 onClick={save}

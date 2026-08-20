@@ -3,7 +3,8 @@ import { locateEdit, applyEdit, type Match } from './str-replace'
 import { scanEditInput } from './partial-json'
 import { findModel, DEFAULT_MODEL, DEFAULT_EFFORT, type EffortChoice } from './models'
 import type { BufferState, TimelineEntry } from './timeline'
-import { BASE_URL, IS_DIRECT } from './endpoint'
+import { BASE_URL, TRANSPORT } from './endpoint'
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 
 /**
  * The edit loop, running in the browser against the user's own key.
@@ -151,7 +152,7 @@ const CORS_REFUSAL = /CORS requests are not allowed/i
 const OPAQUE_NETWORK_FAILURE = /failed to fetch|load failed|networkerror/i
 
 const CORS_HELP =
-  'This organization does not allow browser requests to the API. Run the inspector locally with `bun run dev`, which sends requests through the dev server instead, and your key still goes no further than your own machine.'
+  'This organization does not allow browser requests to the API. The macOS desktop build issues requests outside the browser, so it works with this key: https://github.com/bendrucker/anthropic-text-editor-inspector/releases. Running the inspector locally with `bun run dev` also works, since the dev server forwards the request. Your key stays on your own machine either way.'
 
 /** The SDK's message for a failed request is the raw response body. */
 export function describeFailure(cause: unknown): string {
@@ -168,7 +169,7 @@ export function describeFailure(cause: unknown): string {
   if (CORS_REFUSAL.test(message)) return CORS_HELP
 
   // A blocked preflight is indistinguishable from being offline, so say both.
-  if (IS_DIRECT && OPAQUE_NETWORK_FAILURE.test(message)) {
+  if (TRANSPORT === 'direct' && OPAQUE_NETWORK_FAILURE.test(message)) {
     return `The request never reached the API. Either you are offline, or this organization does not allow browser requests. ${CORS_HELP}`
   }
 
@@ -180,9 +181,12 @@ export function createClient(apiKey: string) {
     apiKey,
     baseURL: BASE_URL,
     dangerouslyAllowBrowser: true,
-    // The header only means anything on a direct call. Through a proxy the
-    // request stops being a browser request before the API sees it.
-    ...(IS_DIRECT
+    // Rust issues the request and streams the response back over IPC, so the
+    // webview never opens a connection the API could refuse on origin.
+    ...(TRANSPORT === 'tauri' ? { fetch: tauriFetch } : {}),
+    // The header only means anything on a direct call. Through a proxy or from
+    // Rust the request stops being a browser request before the API sees it.
+    ...(TRANSPORT === 'direct'
       ? { defaultHeaders: { 'anthropic-dangerous-direct-browser-access': 'true' } }
       : {}),
   })
