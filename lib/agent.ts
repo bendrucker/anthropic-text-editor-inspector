@@ -191,6 +191,16 @@ export interface AgentHandlers {
     /** Every place `old_str` did match, so an ambiguous edit can be shown in place. */
     matches: Match[]
   }) => void
+  /**
+   * The end of a turn that called the tool, with every edit that turn produced
+   * already applied to `document`.
+   *
+   * A path that cannot stream has nothing on screen until something commits it,
+   * and the run is not the unit that produced the edit. Committing here puts a
+   * whole-node edit in the document in its own turn rather than after however
+   * many turns the model spends afterwards.
+   */
+  onTurnEnd: (event: { document: string }) => void
   onDone: (event: {
     document: string
     /** Wall clock from the first request leaving the browser to the last turn ending. */
@@ -715,6 +725,10 @@ export async function runEdit(options: RunOptions): Promise<void> {
         content: `Replaced ${located.matches.length} occurrence(s).`,
       })
     }
+
+    // Every edit of this turn is in the working document now, and the next turn
+    // is a round trip away. Nothing about the screen has to wait for it.
+    handlers.onTurnEnd({ document: workingDocument })
 
     history.push({ role: 'user', content: results })
   }

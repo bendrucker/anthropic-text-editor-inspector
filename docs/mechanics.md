@@ -141,7 +141,7 @@ editor.state.tr.delete(from, to).setMeta('addToHistory', false)
 
 Each `new_str` fragment then inserts at the cursor and advances it. `addToHistory: false` keeps the stream out of the undo stack, so one undo reverts the edit instead of replaying it fragment by fragment.
 
-`block` and `document` do not stream. The editor shows nothing until the tool call completes, at which point `commitEdit` replaces content wholesale from the authoritative document:
+`block` and `document` do not stream. The editor shows nothing until the turn that made the call ends, at which point `commitEdit` replaces content wholesale from the authoritative document:
 
 ```ts
 if (!stream || stream.target.kind !== 'inline') {
@@ -194,6 +194,8 @@ workingDocument = applyEdit(workingDocument, located.matches, input.new_str)
 
 Each turn is shown the document as of that moment rather than the original, and `applyEdit` sorts matches back-to-front so earlier offsets stay valid under `replace_all`. The rejection event carries that same working document, so a failed retry cannot roll back edits that already succeeded earlier in the run.
 
+The screen follows the same boundary. `onTurnEnd` fires once a turn's tool results are settled, and the hook commits every edit that turn produced. A path that cannot stream lands there, while the model is still deciding what to do next, rather than after however many turns it spends afterwards. Committing per turn also keeps the editor's text equal to the document the next turn is shown, which is what lets the next `beginEdit` resolve its target: a second edit to a region the first one rewrote has no match in the document the editor was still holding.
+
 ## Two clocks
 
 A run is timed twice, because "when did the bytes arrive" and "when did the screen change" have different answers. `runEdit` owns the wire clock. `startedAt` is taken as the first request leaves the browser, and `since()` stamps every event after it:
@@ -239,7 +241,7 @@ const targetMs = since()
 
 A run-wide reading among per-turn ones charges the whole retry to whichever gap straddles the turn boundary. When a first attempt is rejected, the rejected turn's `old_str` closes before the retry's tool block has opened, and the subtraction underflows.
 
-Two readings close the run. `settledMs` is on the paint clock and says when the document stopped changing. `totalMs` is on the wire clock and says when the last turn ended. Either can come first. The model usually keeps talking after the edit has landed, but a path that commits on settle repaints at the very end, so the document can finish changing after the run is over.
+Two readings close the run. `settledMs` is on the paint clock and says when the document stopped changing. `totalMs` is on the wire clock and says when the last turn ended. Every edit commits in the turn that produced it, so on a run of several turns `settledMs` lands a whole turn or more before the model stops talking. It can still cross `totalMs` by a frame, because a mutation is only known to be visible once the frame after it has run, and that frame can fall on the far side of the last wire event.
 
 The bar in the runs list draws those spans in order and leaves bare track wherever nothing happened. The tail is most of a run and bought no visible change, so it gets its honest width and no ink. Every bar is drawn against one denominator, the slowest run listed rounded up to a whole second:
 
