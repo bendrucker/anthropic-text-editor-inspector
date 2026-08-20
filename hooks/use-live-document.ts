@@ -298,9 +298,10 @@ export function useLiveDocument() {
     streams.current.delete(id)
   }, [highlight])
 
+  // Unblocks the UI right away. The controller stays in `abortRef` so the run's
+  // own cleanup still recognizes itself and marks the abandoned tool call.
   const stop = useCallback(() => {
     abortRef.current?.abort()
-    abortRef.current = null
     setRunning(false)
     editorRef.current?.setEditable(true)
   }, [])
@@ -551,21 +552,27 @@ export function useLiveDocument() {
           setError(describeFailure(cause))
         }
       } finally {
-        if (turnHistory) history.current = turnHistory
-        recording.current = { calls, handlers, snapshot, promptId }
-        setRecorded(calls.length > 0)
-        setRunning(false)
-        abortRef.current = null
-        editor.setEditable(true)
-        // A stop, an error, or a turn that hit max_tokens mid-call leaves a
-        // tool call with no result. Its card would otherwise pulse forever.
-        setConversation((prior) =>
-          prior.map((item) =>
-            item.kind === 'edit' && !isSettled(item.edit)
-              ? { ...item, edit: { ...item.edit, status: 'incomplete' } }
-              : item,
-          ),
-        )
+        // Stop lets this run's promise settle on its own, so the user can send
+        // a new prompt before this block runs. The controller identifies the
+        // run: once a newer one owns `abortRef`, this cleanup would be undoing
+        // that run's setup and marking its live edit as never finished.
+        if (abortRef.current === controller) {
+          if (turnHistory) history.current = turnHistory
+          recording.current = { calls, handlers, snapshot, promptId }
+          setRecorded(calls.length > 0)
+          setRunning(false)
+          abortRef.current = null
+          editor.setEditable(true)
+          // A stop, an error, or a turn that hit max_tokens mid-call leaves a
+          // tool call with no result. Its card would otherwise pulse forever.
+          setConversation((prior) =>
+            prior.map((item) =>
+              item.kind === 'edit' && !isSettled(item.edit)
+                ? { ...item, edit: { ...item.edit, status: 'incomplete' } }
+                : item,
+            ),
+          )
+        }
       }
     },
     [
