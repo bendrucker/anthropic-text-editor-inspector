@@ -1,6 +1,6 @@
 import { MODELS, findModel, EFFORTS, type EffortChoice } from '@/lib/models'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
-import { Tooltip } from './ui/tooltip'
+import { Tooltip, TooltipStates, type ToggleState } from './ui/tooltip'
 
 interface RunControlsProps {
   model: string
@@ -12,6 +12,35 @@ interface RunControlsProps {
   onEffort: (effort: EffortChoice['id']) => void
   effortAvailable: boolean
   disabled: boolean
+}
+
+/**
+ * `fast` is what the request detail records and what a run in the history is
+ * tagged with, so the tooltip names the live state the same way rather than
+ * calling it On. Off has no name of its own on the wire: it is the request with
+ * no `speed` field.
+ */
+const FAST_STATES: Record<'on' | 'off', ToggleState> = {
+  on: {
+    name: 'fast',
+    body: (
+      <>
+        The request carries <code>speed: 'fast'</code> and the <code>fast-mode-2026-02-01</code>{' '}
+        beta, and bills at a premium. The same model writes the same edit at a higher output rate,
+        so this is the one control here aimed at the wait rather than at what the edit says.
+      </>
+    ),
+  },
+  off: {
+    name: 'standard',
+    body: (
+      <>
+        No <code>speed</code> field and ordinary billing. This is the run a fast one is worth
+        reading against, and the console's Gap column is where the difference shows: the same edit,
+        arriving later.
+      </>
+    ),
+  },
 }
 
 export function RunControls({
@@ -72,10 +101,7 @@ export function RunControls({
         disabled={disabled || !fastAvailable}
         content={
           fastAvailable ? (
-            <>
-              The same model at a higher output rate, billed at a premium. It is the one control
-              here aimed at the wait before the first byte rather than at what the model writes.
-            </>
+            <TooltipStates states={FAST_STATES} current={fastMode ? 'on' : 'off'} />
           ) : (
             <>
               Fast mode is a research preview limited to the Opus 5 family, so{' '}
