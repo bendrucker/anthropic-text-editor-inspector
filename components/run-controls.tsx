@@ -109,7 +109,7 @@ export function RunHistory({ runs }: { runs: Run[] }) {
   if (runs.length === 0) {
     return (
       <div className="px-4 py-3">
-        <p className="text-[11px] text-slate-400">
+        <p className="text-[11px] text-slate-500">
           Each finished run lands here, so two configurations can be compared rather than described.
         </p>
       </div>
@@ -118,17 +118,17 @@ export function RunHistory({ runs }: { runs: Run[] }) {
 
   return (
     <div className="min-h-0 overflow-y-auto px-4 py-3">
-      <p className="mb-2 text-[11px] font-medium tracking-wide text-slate-400 uppercase">
+      <p className="mb-2 text-[11px] font-medium tracking-wide text-slate-500 uppercase">
         Time to first edit
       </p>
       <ul className="space-y-1">
         {runs.slice(0, 5).map((run, index) => (
           <li key={index} className="text-xs">
             <div className="flex items-center justify-between gap-3">
-              <span className="truncate text-slate-500">
+              <span className="truncate text-slate-600">
                 {findModel(run.model)?.label ?? run.model}
-                <span className="ml-1 text-slate-400">{findEffort(run.effort)?.label.toLowerCase()}</span>
-                {run.fastMode && <span className="ml-1 text-amber-600">fast</span>}
+                <span className="ml-1 text-slate-500">{findEffort(run.effort)?.label.toLowerCase()}</span>
+                {run.fastMode && <span className="ml-1 text-amber-700">fast</span>}
               </span>
               <span className="shrink-0 font-medium tabular-nums text-slate-700">
                 {run.timeToFirstEditMs === null ? 'no edit' : `${(run.timeToFirstEditMs / 1000).toFixed(2)}s`}
@@ -204,13 +204,13 @@ function Breakdown({ timing }: { timing: EditTiming }) {
           </Tooltip>
         ))}
       </div>
-      <div className="flex gap-3 text-[11px] tabular-nums text-slate-400">
+      <div className="flex gap-3 text-[11px] tabular-nums text-slate-600">
         {/* The legend is where a keyboard reaches the explanation the bar carries. */}
         {SEGMENTS.map((segment) => (
           <Tooltip key={segment.key} content={segment.explanation} side="top">
             <span
               tabIndex={0}
-              className="rounded-xs focus-visible:outline-2 focus-visible:outline-slate-400"
+              className="rounded-xs focus-visible:outline-2 focus-visible:outline-slate-500"
             >
               {segment.key} {(spans[segment.key as keyof typeof spans] / 1000).toFixed(2)}s
             </span>
