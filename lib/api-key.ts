@@ -93,7 +93,15 @@ const devServerKeyStore: KeyStore = {
   editable: false,
 }
 
-export const keyStore: KeyStore = import.meta.env.VITE_SERVER_SIDE_KEY
+/**
+ * The placeholder is only ever safe on a request that crosses the proxy, which
+ * is the only place it gets swapped for the real key. `tauri dev` runs the same
+ * dev server underneath the webview, so the flag alone would claim a key the
+ * Rust-issued request never picks up.
+ */
+const DEV_SERVER_KEY = TRANSPORT === 'proxy' && import.meta.env.VITE_SERVER_SIDE_KEY === true
+
+export const keyStore: KeyStore = DEV_SERVER_KEY
   ? devServerKeyStore
   : TRANSPORT === 'tauri'
     ? keychainKeyStore

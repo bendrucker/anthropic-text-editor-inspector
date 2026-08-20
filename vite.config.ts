@@ -8,7 +8,7 @@ import { PROXY_PATH } from './lib/proxy-path.ts'
 // `bun run build:single` inlines every asset into one index.html.
 const singleFile = process.env.SINGLE_FILE === '1'
 
-export default defineConfig(({ command, mode }) => {
+export default defineConfig(({ command, mode, isPreview }) => {
   const env = loadEnv(mode, process.cwd(), '')
 
   // Testing without pasting a key: the dev server authenticates on the
@@ -16,8 +16,14 @@ export default defineConfig(({ command, mode }) => {
   // gitignored `.env.local` and never reaches the bundle. Only the dev server
   // can do this, and only when requests actually go through its proxy, which a
   // build pointed at some other base URL does not.
+  //
+  // `vite preview` is also a `serve`, and it inherits this proxy while serving
+  // a bundle that calls the API directly. Attaching a key there would leave an
+  // authenticated relay listening for anyone who can reach the port.
   const serverKey =
-    command === 'serve' && !env.VITE_ANTHROPIC_BASE_URL ? env.ANTHROPIC_API_KEY : undefined
+    command === 'serve' && !isPreview && !env.VITE_ANTHROPIC_BASE_URL
+      ? env.ANTHROPIC_API_KEY
+      : undefined
 
   return {
     plugins: [react(), tailwindcss(), ...(singleFile ? [viteSingleFile()] : [])],
