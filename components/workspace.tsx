@@ -19,7 +19,10 @@ export function Workspace() {
 
   return (
     <div className="flex h-screen flex-col bg-white">
-      <header className="flex items-center justify-between border-b border-slate-200 px-6 py-3">
+      {/* One row is only honest while both halves fit in it. Below `md` the two
+          halves stack, because the alternative is every control in the right
+          half wrapping its own label into a column. */}
+      <header className="flex flex-col gap-2 border-b border-slate-200 px-6 py-3 md:flex-row md:items-center md:justify-between">
         <div className="flex min-w-0 items-center gap-3">
           <DocumentPicker
             document={doc.document}
@@ -28,10 +31,19 @@ export function Workspace() {
             onGenerate={doc.generate}
             disabled={doc.running}
           />
-          <span className="truncate text-xs text-slate-500">{doc.document.description}</span>
+          {/* Truncation stops paying somewhere above a stub: at 650px this had
+              shrunk to one letter and an ellipsis. The document select's own
+              tooltip carries the same sentence, so dropping it loses nothing. */}
+          <span className="hidden truncate text-xs text-slate-500 lg:block">
+            {doc.document.description}
+          </span>
         </div>
 
-        <div className="flex items-center gap-4">
+        {/* `shrink-0` settles which half gives way first. Without it the run
+            controls compress and wrap while the description beside them keeps
+            its full width, which is backwards: the description truncates
+            gracefully and a control does not. */}
+        <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2">
           {/* A live region announces text that changes inside it, so this
               container has to outlive the run rather than appear with it. The
               end of a run leaves nothing on screen at all, which is what the
