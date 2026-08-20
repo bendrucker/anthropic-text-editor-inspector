@@ -122,7 +122,7 @@ export function ChatPane({
                     key={trap.needle}
                     onClick={() => onSend(trap.prompt)}
                     disabled={!hasKey}
-                    className="block w-full rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 text-left text-sm text-slate-700 transition hover:border-amber-300 disabled:opacity-40 disabled:hover:border-amber-200"
+                    className="block w-full rounded-lg border border-control-warn bg-amber-50/60 px-3 py-2 text-left text-sm text-slate-700 transition hover:border-control-warn-strong disabled:opacity-40 disabled:hover:border-control-warn"
                   >
                     {trap.prompt}
                     <span className="mt-0.5 block text-[11px] text-amber-700">{trap.why}</span>

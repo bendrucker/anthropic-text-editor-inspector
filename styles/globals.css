@@ -27,6 +27,32 @@
   --color-control-strong: oklch(55.4% 0.046 257.417);
 }
 
+/* The same edge in amber, for the controls whose fill and text are already
+   amber. `amber-200` measures 1.20:1 against its own fill and `amber-300`
+   measures 1.40:1, so the tone was drawing no edge at all.
+
+   The amber ramp has the hole the slate ramp has, one step further down.
+   `amber-400` is 1.66:1 and `amber-500` is 2.06:1. `amber-600` is the first
+   step to clear, at 3.09:1 against the fill, and three percent of headroom does
+   not survive the four grounds this app paints behind an amber control.
+   `amber-700` is 4.85:1, the overshoot #63 declined for a resting edge. This
+   value interpolates the ramp between those two steps and lands on `control`'s
+   own numbers, so an amber control's edge weighs what a grey one weighs.
+
+   `control-warn-strong` is `amber-700` exactly, the way `control-strong` is
+   `slate-500` exactly. It is darker than the resting edge for the reason given
+   above: a hover that lightens a compliant hairline loses contrast.
+
+   Amber is the app's failure tone, and #68 took it off the settings it did not
+   belong on. What is left wearing it here is a trap prompt, a missing key, and
+   the Fast badge, which #68 kept. This token changes none of that. */
+@theme {
+  /* 3.48:1 on white, 3.35:1 on amber-50, 3.40:1 on amber-50/60, 3.32:1 on slate-50. */
+  --color-control-warn: oklch(64.5% 0.174 55.5);
+  /* amber-700. 5.03:1 on white, 4.85:1 on amber-50. */
+  --color-control-warn-strong: oklch(55.5% 0.163 48.998);
+}
+
 :root {
   --edit-target: oklch(0.94 0.03 250);
   --edit-ambiguous: oklch(0.92 0.09 85);
