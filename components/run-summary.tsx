@@ -16,6 +16,11 @@ import type { Run } from '@/hooks/use-live-document'
  * Wherever nothing happened, nothing is drawn. The tail is most of a run and
  * bought no visible change, so it gets its honest width as bare track and no
  * ink, which is also why nothing in it can be mistaken for the app being slow.
+ *
+ * A run that landed no edit still draws a bar. It paid for the same named spans
+ * reaching a target the matcher then refused, and those spans are the run's
+ * whole account of itself. Leaving it as the word "no edit" beside a neighbour
+ * drawing a full bar hides the retry loop in the panel built to compare runs.
  */
 
 const secs = (ms: number) => `${(ms / 1000).toFixed(2)}s`
@@ -27,7 +32,18 @@ function extentOf(timing: EditTiming): number {
   return Math.max(timing.totalMs ?? timing.targetMs, timing.settledMs ?? 0, 1)
 }
 
-function spansOf(timing: EditTiming) {
+/** Only `onEditCommit` writes this, so a null reading means nothing ever landed. */
+const landedIn = (run: Run) => run.timeToFirstEditMs !== null
+
+/**
+ * `landed` decides whether there is a render span at all.
+ *
+ * A refused run still paints. Opening the hole for the edit and restoring the
+ * document after the refusal both touch the paint counter, so `settledMs` is a
+ * real reading taken from a document that never showed an edit. Subtracting the
+ * target from it would report the restore as the time an edit took to render.
+ */
+function spansOf(timing: EditTiming, landed: boolean) {
   const retries = timing.retriesMs ?? 0
   return {
     retries,
@@ -37,7 +53,7 @@ function spansOf(timing: EditTiming) {
     connect: Math.max(timing.firstByteMs - retries, 0),
     preamble: Math.max(timing.toolStartMs - timing.firstByteMs, 0),
     target: Math.max(timing.targetMs - timing.toolStartMs, 0),
-    render: Math.max((timing.settledMs ?? timing.targetMs) - timing.targetMs, 0),
+    render: landed ? Math.max((timing.settledMs ?? timing.targetMs) - timing.targetMs, 0) : 0,
   }
 }
 
@@ -67,7 +83,7 @@ const TONES: Record<SpanKey, string> = {
  * lever is the lesson rather than an omission.
  */
 function explain(key: SpanKey, run: Run, timing: EditTiming): ReactNode {
-  const spans = spansOf(timing)
+  const spans = spansOf(timing, landedIn(run))
   const model = findModel(run.model)
   const name = model?.label ?? run.model
   const share = (ms: number, of: number) => `${Math.round((ms / Math.max(of, 1)) * 100)}%`
@@ -142,7 +158,7 @@ function explain(key: SpanKey, run: Run, timing: EditTiming): ReactNode {
  * that emptiness from reading as a bar that failed to fill.
  */
 function RunBar({ run, timing, scaleMs }: { run: Run; timing: EditTiming; scaleMs: number }) {
-  const spans = spansOf(timing)
+  const spans = spansOf(timing, landedIn(run))
   const keys: SpanKey[] = ['retries', 'connect', 'preamble', 'target', 'render']
   const endMs = timing.totalMs ?? timing.targetMs
   const overFill = (timing.settledMs ?? 0) > endMs
@@ -262,20 +278,24 @@ function Legend({ explanation, children }: { explanation: ReactNode; children: R
 }
 
 /** What the run rendered, in words, since that is the question the app exists to answer. */
-function headline(timing: EditTiming): string {
-  const spans = spansOf(timing)
-  const landed =
-    timing.settledMs === undefined
-      ? 'Nothing rendered'
-      : timing.textPaintMs !== undefined && timing.settledMs === timing.textPaintMs
-        ? 'Rendered in one frame'
-        : `Rendered in ${brief(spans.render)}`
-  return `${landed} after ${secs(timing.targetMs)} of model and network`
+function headline(timing: EditTiming, landed: boolean): string {
+  const spans = spansOf(timing, landed)
+  const rendered = !landed
+    ? 'No edit landed'
+    : timing.textPaintMs !== undefined && timing.settledMs === timing.textPaintMs
+      ? 'Rendered in one frame'
+      : `Rendered in ${brief(spans.render)}`
+  return `${rendered} after ${secs(timing.targetMs)} of model and network`
 }
 
-function tailLine(timing: EditTiming): string | null {
+/**
+ * Silent on a refused run. Its `settledMs` is the restore, so every sentence
+ * here would date the document's last change to an edit being taken back off
+ * the screen, and the tail would be time measured from that.
+ */
+function tailLine(timing: EditTiming, landed: boolean): string | null {
   const { settledMs, totalMs } = timing
-  if (settledMs === undefined || totalMs === undefined) return null
+  if (!landed || settledMs === undefined || totalMs === undefined) return null
   const tail = totalMs - settledMs
   if (tail <= 0) {
     return `The document finished changing ${brief(-tail)} after the run ended.`
@@ -298,14 +318,16 @@ function RunRow({
   onOpen: () => void
 }) {
   const timing = run.timing
+  const landed = landedIn(run)
   const label = findModel(run.model)?.label ?? run.model
   const effort = findEffort(run.effort)?.label.toLowerCase()
-  const spans = timing && spansOf(timing)
+  const spans = timing && spansOf(timing, landed)
   // A path that commits on settle paints after the stream has closed, so the
   // document can finish changing after the run ends. There is no tail to take a
   // share of then, and the subtraction prints one as a negative percentage.
   // `tailLine` already says what happened instead.
-  const tail = timing?.settledMs !== undefined
+  const tail = landed
+    && timing?.settledMs !== undefined
     && timing.totalMs !== undefined
     && timing.totalMs > timing.settledMs
     ? Math.round(((timing.totalMs - timing.settledMs) / timing.totalMs) * 100)
@@ -324,7 +346,11 @@ function RunRow({
           {run.fastMode && <span className="ml-1 text-amber-700">fast</span>}
         </span>
         <span className="shrink-0 tabular-nums text-slate-700">
-          {spans ? <span className="font-medium">{brief(spans.render)}</span> : 'no edit'}
+          {spans && landed ? (
+            <span className="font-medium">{brief(spans.render)}</span>
+          ) : (
+            'no edit'
+          )}
           {tail !== null && <span className="ml-1 text-slate-500">{tail}% tail</span>}
         </span>
       </button>
@@ -333,10 +359,11 @@ function RunRow({
         <div className="mt-1 space-y-1">
           {expanded && (
             <>
-              <p className="text-[11px] text-slate-600">{headline(timing)}</p>
+              <p className="text-[11px] text-slate-600">{headline(timing, landed)}</p>
               {(timing.turn ?? 1) > 1 && (
                 <p className="text-[10px] text-slate-500">
-                  Reached the edit on turn {timing.turn}, after {secs(spansOf(timing).retries)} of{' '}
+                  {landed ? 'Reached the edit on turn' : 'Gave up on turn'} {timing.turn}, after{' '}
+                  {secs(spansOf(timing, landed).retries)} of{' '}
                   {countOf((timing.turn ?? 1) - 1, 'earlier attempt')}.
                 </p>
               )}
@@ -350,12 +377,14 @@ function RunRow({
               <p className="flex flex-wrap gap-x-2 text-[10px] tabular-nums text-slate-600">
                 {(['connect', 'preamble', 'target'] as const).map((key) => (
                   <Legend key={key} explanation={explain(key, run, timing)}>
-                    {key} {brief(spansOf(timing)[key])}
+                    {key} {brief(spansOf(timing, landed)[key])}
                   </Legend>
                 ))}
               </p>
-              <RenderBar timing={timing} />
-              {tailLine(timing) && <p className="text-[10px] text-slate-500">{tailLine(timing)}</p>}
+              {landed && <RenderBar timing={timing} />}
+              {tailLine(timing, landed) && (
+                <p className="text-[10px] text-slate-500">{tailLine(timing, landed)}</p>
+              )}
             </>
           )}
         </div>

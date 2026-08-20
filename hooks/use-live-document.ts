@@ -566,6 +566,11 @@ export function useLiveDocument() {
       // Held locally because handlers run before state settles.
       let firstEditMs: number | null = null
       let firstTiming: EditTiming | null = null
+      // The last attempt the matcher refused, so a run that landed nothing can
+      // still say what it spent reaching a target. Each refusal overwrites it,
+      // which leaves the final attempt, matching how `firstTiming` reads its
+      // spans off the turn that did the work rather than the run's first turn.
+      let lastRefused: EditTiming | null = null
       // The stream itself rather than its id, because the end of its turn
       // commits and removes it well before the paint below is read.
       let firstStream: StreamState | null = null
@@ -720,6 +725,7 @@ export function useLiveDocument() {
         },
 
         onEditRejected(event) {
+          lastRefused = started.get(event.id)?.timing ?? lastRefused
           started.delete(event.id)
           record({
             atMs: event.elapsedMs,
@@ -801,14 +807,19 @@ export function useLiveDocument() {
                     : `${event.elapsedMs}ms in total, across ${frames}. The document finished changing at ${settledMs}ms, after the run itself had ended.`,
             })
 
+            // A refused run falls back to its last attempt. `firstEditMs` stays
+            // null there, which is what tells a run that rendered an edit apart
+            // from one that only ever reached a target.
+            const attempted = firstTiming ?? lastRefused
+
             setRuns((prior) => [
               {
                 model: event.model,
                 fastMode: event.fastMode,
                 effort: event.effort,
                 timeToFirstEditMs: firstEditMs,
-                timing: firstTiming && {
-                  ...firstTiming,
+                timing: attempted && {
+                  ...attempted,
                   ...(paintMs === null ? {} : { paintMs }),
                   ...(textPaintMs === null ? {} : { textPaintMs }),
                   ...(settledMs === null ? {} : { settledMs }),
