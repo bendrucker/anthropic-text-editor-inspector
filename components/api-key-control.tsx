@@ -21,7 +21,7 @@ function EnvironmentKeyBadge() {
     <Tooltip content={`${keyStore.description} ${keyStore.change}`}>
       <span
         tabIndex={0}
-        className="rounded-md border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-500"
+        className="focus-ring rounded-md border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-500"
       >
         Key from dev server
       </span>
@@ -84,7 +84,7 @@ function KeyPopover({ apiKey, onApiKey }: ApiKeyControlProps) {
                 onChange={(event) => setDraft(event.target.value)}
                 onKeyDown={(event) => event.key === 'Enter' && save()}
                 placeholder="sk-ant-…"
-                className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 font-mono text-xs text-slate-800 placeholder:text-slate-500 focus:border-slate-400 focus:outline-none"
+                className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 font-mono text-xs text-slate-800 placeholder:text-slate-500 focus:border-slate-400 focus-ring"
               />
               <p className={`text-xs leading-relaxed ${malformed ? 'text-amber-700' : 'text-slate-500'}`}>
                 {malformed

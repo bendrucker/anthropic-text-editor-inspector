@@ -13,6 +13,38 @@ body {
   color: oklch(0.28 0.02 260);
 }
 
+/* Focus --------------------------------------------------------------------- */
+
+/* One ring for every control, because a keyboard user should not have to learn
+   a second indicator halfway across the app.
+
+   `blue-500` is the one step of the ramp that clears 3:1 on both grounds this
+   app paints: 3.76 on white, 3.60 on `slate-50`, 3.89 on `slate-800`, 4.74 on
+   `slate-900`. A darker blue reads better on the light surfaces and drops to
+   2.79 on the dark one, which is why the obvious `blue-600` is not this.
+
+   `:focus-visible` rather than `:focus` is what makes the ring affordable. The
+   outlines this replaces were suppressed to stop a ring appearing on every
+   mouse click, and that stays true: a click leaves a button unmatched. A text
+   field matches either way, which is how every native one behaves. */
+@utility focus-ring {
+  &:focus-visible {
+    outline: 2px solid var(--color-blue-500);
+    outline-offset: 2px;
+  }
+}
+
+/* The same ring drawn inside the element instead of around it, for a control
+   that fills a scroll container. A scroller clips at its padding box, so an
+   offset ring on a full-width row loses its left and right edges and survives
+   as two horizontal rules, which read as dividers rather than as focus. */
+@utility focus-ring-inset {
+  &:focus-visible {
+    outline: 2px solid var(--color-blue-500);
+    outline-offset: -2px;
+  }
+}
+
 /* Scrollbars ---------------------------------------------------------------- */
 
 /* Four panes scroll at once during a run, and macOS draws every one of them at

@@ -21,6 +21,10 @@ export function DocumentPane({ initialMarkdown, locked, onEditor, onAskAboutSele
     contentType: 'markdown',
     editorProps: {
       attributes: {
+        // The one control that keeps its outline suppressed instead of taking
+        // `focus-ring`. Focus here is a caret sitting in prose, which says where
+        // typing will land. A ring around the whole surface would say only that
+        // the document is the document.
         class: 'prose prose-slate max-w-none focus:outline-none prose-headings:font-semibold',
       },
     },
