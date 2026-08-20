@@ -29,6 +29,7 @@ const handlers: AgentHandlers = {
   onEditDelta: ignore,
   onEditCommit: ignore,
   onEditRejected: ignore,
+  onTurnEnd: ignore,
   onDone: ignore,
   onEvent: ignore,
   onBuffer: ignore,

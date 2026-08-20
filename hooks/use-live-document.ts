@@ -436,6 +436,36 @@ export function useLiveDocument() {
     [highlight, reconcile],
   )
 
+  /**
+   * Lands every edit still open against the authoritative document.
+   *
+   * This runs at the end of the turn that produced those edits, which is as
+   * early as a path that cannot stream can show anything: the edit is validated
+   * and in the working document, and the next turn is a round trip away. Running
+   * it per turn is also what keeps the editor's text current, so the next turn's
+   * `beginEdit` resolves its target against the document the model was shown.
+   */
+  const settleEdits = useCallback(
+    (document: string) => {
+      // Several structural edits commit in the same frame, so they are one
+      // paint and get one entry rather than a row each.
+      let committed = 0
+      for (const id of [...streams.current.keys()]) {
+        if (commitEdit(id, document)) committed += 1
+      }
+      if (committed > 0) {
+        recordPaint((atMs) => ({
+          label: 'paint · edit settled',
+          detail: `${countOf(committed, 'edit')} replaced whole on commit, so ${atMs}ms is the first moment any of them was visible.`,
+          tone: 'good',
+        }))
+      }
+
+      reconcile(document)
+    },
+    [commitEdit, recordPaint, reconcile],
+  )
+
   // Unblocks the UI right away. The controller stays in `abortRef` so the run's
   // own cleanup still recognizes itself and marks the abandoned tool call.
   const stop = useCallback(() => {
@@ -536,8 +566,8 @@ export function useLiveDocument() {
       // Held locally because handlers run before state settles.
       let firstEditMs: number | null = null
       let firstTiming: EditTiming | null = null
-      // The stream itself rather than its id, because `onDone` commits and
-      // removes every remaining stream before it reads the paint below.
+      // The stream itself rather than its id, because the end of its turn
+      // commits and removes it well before the paint below is read.
       let firstStream: StreamState | null = null
       // When each open call closed its `old_str`, until that call either
       // commits or is rejected. A rejected `old_str` left the document where it
@@ -715,9 +745,10 @@ export function useLiveDocument() {
             },
             blankEdit(event.id, snapshot),
           )
-          // Closes the hole opened for the rejected edit. This also lands any
-          // earlier edit of the run that never streamed, so what moved on
-          // screen decides whether there was a paint, not what was rejected.
+          // Closes the hole opened for the rejected edit. Every earlier turn has
+          // already landed, and an earlier edit of this same turn lands here, so
+          // what moved on screen decides whether there was a paint, not what
+          // was rejected.
           if (reconcile(event.document)) {
             recordPaint(() => ({
               label: 'paint · document restored',
@@ -730,23 +761,15 @@ export function useLiveDocument() {
           else highlight(null)
         },
 
+        onTurnEnd(event) {
+          settleEdits(event.document)
+        },
+
         onDone(event) {
           turnHistory = event.history
-          // Several structural edits commit in the same frame, so they are one
-          // paint and get one entry rather than a row each.
-          let committed = 0
-          for (const id of [...streams.current.keys()]) {
-            if (commitEdit(id, event.document)) committed += 1
-          }
-          if (committed > 0) {
-            recordPaint((atMs) => ({
-              label: 'paint · edit settled',
-              detail: `${countOf(committed, 'edit')} replaced whole on commit, so ${atMs}ms is the first moment any of them was visible.`,
-              tone: 'good',
-            }))
-          }
-
-          reconcile(event.document)
+          // A turn that ended on `tool_use` has already settled. This one did
+          // not, so anything still open is a call the turn abandoned mid-flight.
+          settleEdits(event.document)
 
           // Read a paint later, so the frames the last streamed characters
           // landed in are counted before the run is summed up.
@@ -760,8 +783,11 @@ export function useLiveDocument() {
             // subtract the run's start twice.
             const textPaintMs = firstStream?.textPaintedAtMs ?? null
 
-            // A commit-on-settle path repaints at the very end, so the document
-            // can finish changing after the last wire event rather than before.
+            // Edits land in their own turn, so the tail is normally the model
+            // talking after the document stopped moving. It can still be
+            // negative by a frame: the last paint of the final turn is known to
+            // be on screen only once the frame after it has run, which is after
+            // the stream that caused it closed.
             const frames = countOf(painted?.frames ?? 0, 'painted frame')
             const tailMs = event.elapsedMs - (settledMs ?? 0)
             record({
@@ -858,7 +884,7 @@ export function useLiveDocument() {
       changeEdit,
       beginEdit,
       appendChunk,
-      commitEdit,
+      settleEdits,
       reconcile,
       highlight,
       showMatches,

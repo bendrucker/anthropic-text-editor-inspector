@@ -43,6 +43,10 @@ export function instrument(
       sink({ atMs: clock(), name: 'onEditRejected', arg })
       handlers.onEditRejected(arg)
     },
+    onTurnEnd: (arg) => {
+      sink({ atMs: clock(), name: 'onTurnEnd', arg })
+      handlers.onTurnEnd(arg)
+    },
     onDone: (arg) => {
       sink({ atMs: clock(), name: 'onDone', arg })
       handlers.onDone(arg)
@@ -71,6 +75,8 @@ export function dispatch(handlers: AgentHandlers, call: RecordedCall): void {
       return handlers.onEditCommit(call.arg)
     case 'onEditRejected':
       return handlers.onEditRejected(call.arg)
+    case 'onTurnEnd':
+      return handlers.onTurnEnd(call.arg)
     case 'onDone':
       return handlers.onDone(call.arg)
     case 'onEvent':
