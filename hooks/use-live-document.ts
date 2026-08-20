@@ -92,6 +92,11 @@ interface StreamState {
   textPainted: boolean
   /** Resolved a frame later, when those characters are known to be on screen. */
   textPaintedAtMs: number | null
+  /**
+   * Whether `new_str` has finished arriving. Paint entries read it inside their
+   * frame callback, so the answer belongs to the frame the entry describes.
+   */
+  newStrClosed: boolean
 }
 
 /** One completed request, kept so configurations can be compared in a demo. */
@@ -326,6 +331,7 @@ export function useLiveDocument() {
           anchor: 0,
           textPainted: false,
           textPaintedAtMs: null,
+          newStrClosed: false,
         })
         return target.kind
       }
@@ -347,6 +353,7 @@ export function useLiveDocument() {
         anchor: from,
         textPainted: false,
         textPaintedAtMs: null,
+        newStrClosed: false,
       })
       return target.kind
     },
@@ -377,7 +384,11 @@ export function useLiveDocument() {
         record({
           atMs: stream.textPaintedAtMs,
           label: 'paint · first replacement text',
-          detail: 'Replacement characters are on screen while new_str is still arriving.',
+          // Read at the paint the sentence describes. A single burst closes
+          // new_str before this frame lands, and the entry then says so.
+          detail: stream.newStrClosed
+            ? 'Replacement characters are on screen. new_str had finished arriving before this frame painted.'
+            : 'Replacement characters are on screen while new_str is still arriving.',
           tone: 'good',
         })
       })
@@ -525,6 +536,9 @@ export function useLiveDocument() {
       // Held locally because handlers run before state settles.
       let firstEditMs: number | null = null
       let firstTiming: EditTiming | null = null
+      // The stream itself rather than its id, because `onDone` commits and
+      // removes every remaining stream before it reads the paint below.
+      let firstStream: StreamState | null = null
       // When each open call closed its `old_str`, until that call either
       // commits or is rejected. A rejected `old_str` left the document where it
       // was, so its timestamp is not a time to first edit, and on an ambiguity
@@ -555,6 +569,11 @@ export function useLiveDocument() {
             newStr: state.newStr ?? '',
             newStrComplete: state.newStrComplete,
           }
+
+          // Kept on the stream so a paint entry can say where its frame landed
+          // relative to the arrival instead of assuming.
+          const stream = streams.current.get(state.toolUseId)
+          if (stream) stream.newStrClosed = state.newStrComplete
 
           setConversation((prior) => {
             const known = prior.some((item) => item.kind === 'edit' && item.edit.id === state.toolUseId)
@@ -605,9 +624,14 @@ export function useLiveDocument() {
           // Only the inline path moves anything yet. The other two hold the
           // document still until commit, so their first paint is the commit.
           if (applyPath === 'inline') {
+            const stream = streams.current.get(event.id)
             recordPaint((atMs) => ({
               label: 'paint · target opened',
-              detail: `The hole is on screen ${atMs - event.elapsedMs}ms after old_str closed, with new_str still arriving.`,
+              // Read at the paint the sentence describes. A frame that lands
+              // after new_str closed then says so.
+              detail: stream?.newStrClosed
+                ? `The hole is on screen ${atMs - event.elapsedMs}ms after old_str closed. new_str had already arrived in full.`
+                : `The hole is on screen ${atMs - event.elapsedMs}ms after old_str closed, with new_str still arriving.`,
               tone: 'good',
             }))
           }
@@ -632,6 +656,7 @@ export function useLiveDocument() {
           if (opened) {
             firstEditMs ??= opened.elapsedMs
             firstTiming ??= opened.timing
+            firstStream ??= streams.current.get(event.id) ?? null
             setTimeToFirstEdit((prior) => prior ?? opened.elapsedMs)
           }
 
@@ -729,6 +754,11 @@ export function useLiveDocument() {
             const painted = paintFrames.current?.read()
             const paintMs = paintedAt(painted?.firstAtMs)
             const settledMs = paintedAt(painted?.lastAtMs)
+            // The counter stores raw performance.now() readings, so paintMs and
+            // settledMs convert here. This one was converted where it was
+            // stored, at the paint that set it, and converting again would
+            // subtract the run's start twice.
+            const textPaintMs = firstStream?.textPaintedAtMs ?? null
 
             // A commit-on-settle path repaints at the very end, so the document
             // can finish changing after the last wire event rather than before.
@@ -741,7 +771,7 @@ export function useLiveDocument() {
                 settledMs === null
                   ? `${event.elapsedMs}ms in total, with nothing painted. The document never changed.`
                   : tailMs > 0
-                    ? `${event.elapsedMs}ms in total, across ${frames}. The document stopped changing at ${settledMs}ms, so the last ${tailMs}ms bought no visible change.`
+                    ? `${event.elapsedMs}ms in total, across ${frames}. The document stopped changing at ${settledMs}ms, and the model kept going for ${tailMs}ms after that.`
                     : `${event.elapsedMs}ms in total, across ${frames}. The document finished changing at ${settledMs}ms, after the run itself had ended.`,
             })
 
@@ -754,6 +784,7 @@ export function useLiveDocument() {
                 timing: firstTiming && {
                   ...firstTiming,
                   ...(paintMs === null ? {} : { paintMs }),
+                  ...(textPaintMs === null ? {} : { textPaintMs }),
                   ...(settledMs === null ? {} : { settledMs }),
                   totalMs: event.elapsedMs,
                 },

@@ -530,14 +530,18 @@ export async function runEdit(options: RunOptions): Promise<void> {
         fragments: count,
       })
 
-      // The target is known as soon as old_str closes, well before new_str ends.
+      // The target is known as soon as old_str closes, which on a streamed call
+      // is well before new_str ends. A single burst closes both at once, and the
+      // entry reads the scan rather than assuming which shape this call took.
       if (parsed.oldStrComplete && parsed.oldStr && !announced.has(index)) {
         announced.add(index)
         firstEditAt ??= performance.now()
         const targetMs = Math.round(firstEditAt - startedAt)
         record({
           label: 'old_str closed',
-          detail: `${parsed.oldStr.length} chars. The target is known while new_str is still arriving.`,
+          detail: parsed.newStrComplete
+            ? `${parsed.oldStr.length} chars. The target and its replacement arrived together.`
+            : `${parsed.oldStr.length} chars. The target is known while new_str is still arriving.`,
           tone: 'good',
         })
         handlers.onEditStart({
