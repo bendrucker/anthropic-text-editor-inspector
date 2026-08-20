@@ -166,6 +166,25 @@ export interface EditTiming {
   paintMs?: number
   /** The first paint carrying replacement text, which is where landing starts. */
   textPaintMs?: number
+  /**
+   * When the edit these spans describe finished landing.
+   *
+   * Edit-level, and the only settle that subtracts against `targetMs` to a real
+   * render time, because both endpoints then come from the same edit. Read by
+   * the `render` span and by the render bar's window. Absent when nothing
+   * committed, which is what keeps a refused run from reporting one.
+   */
+  editSettledMs?: number
+  /**
+   * When the document stopped changing, across the whole run.
+   *
+   * Run-level, unlike every other reading here. On a run of one edit the two
+   * settles agree, and from the second edit on this one belongs to whichever
+   * edit landed last while `targetMs` still belongs to the first. Subtracting
+   * them charges the later edit's model time to rendering the earlier one. Read
+   * by the tail line, the tail percentage, `extentOf`, and the mark that says
+   * the document outlived the run.
+   */
   settledMs?: number
   totalMs?: number
 }

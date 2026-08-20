@@ -227,6 +227,7 @@ A run's wall clock is mostly wait, and the app's own contribution to it is routi
 | connect | `firstByteMs - retriesMs` | network and model start-up |
 | preamble | `toolStartMs - firstByteMs` | text the model wrote before it called the tool |
 | target | `targetMs - toolStartMs` | `old_str` streaming, bounded by the context the match needed |
+| render | `editSettledMs - targetMs` | the target closing to that edit finishing landing |
 
 Every reading is measured from the run rather than from the turn, which is why each span is a subtraction. `retriesMs` is the whole cost of the earlier turns, since the run had done nothing else by then, so a second attempt is named as its own span instead of hiding inside the connection.
 
@@ -242,6 +243,10 @@ const targetMs = since()
 A run-wide reading among per-turn ones charges the whole retry to whichever gap straddles the turn boundary. When a first attempt is rejected, the rejected turn's `old_str` closes before the retry's tool block has opened, and the subtraction underflows.
 
 Two readings close the run. `settledMs` is on the paint clock and says when the document stopped changing. `totalMs` is on the wire clock and says when the last turn ended. Every edit commits in the turn that produced it, so on a run of several turns `settledMs` lands a whole turn or more before the model stops talking. It can still cross `totalMs` by a frame, because a mutation is only known to be visible once the frame after it has run, and that frame can fall on the far side of the last wire event.
+
+One further reading closes the edit rather than the run. `editSettledMs` is on the paint clock too, and it says when the edit `targetMs` describes finished landing. That is the endpoint the render span subtracts against. The two settles agree on a run that made one edit. They part on every run that made two, because `settledMs` follows the document and moves to whichever edit landed last while `targetMs` stays on the first. Subtract one from the other and a later edit's model time gets reported as this one's render. On a measured three-turn run that read 3.37s for an edit that had rendered in 63ms.
+
+So `EditTiming` holds both. Every field on it describes one edit except `settledMs` and `totalMs`, which describe the run. A refused run carries no `editSettledMs`. Its other spans are borrowed from the attempt the matcher went on to refuse, and a settle beside them would date an edit that never landed.
 
 The bar in the runs list draws those spans in order and leaves bare track wherever nothing happened. The tail is most of a run and bought no visible change, so it gets its honest width and no ink. Every bar is drawn against one denominator, the slowest run listed rounded up to a whole second:
 
