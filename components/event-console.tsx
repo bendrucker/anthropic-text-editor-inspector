@@ -141,7 +141,12 @@ export function EventConsole({ timeline }: EventConsoleProps) {
 
   return (
     <div className="relative flex min-h-0 flex-col">
-      <div className="flex shrink-0 items-center gap-1.5 px-3 py-1.5">
+      {/* This row set the console's minimum width. Every control in it is
+          intrinsically sized and none of them used to give, so it floored the
+          whole column at 414px, and near 500px once the problems chip appears,
+          while the event grid underneath asks for 380px. Letting the row wrap
+          hands the floor back to the grid. */}
+      <div className="flex shrink-0 flex-wrap items-center gap-1.5 px-3 py-1.5">
         <FilterBox value={query} onChange={setQuery} />
 
         {SOURCES.map((source) => (
@@ -846,7 +851,10 @@ function formatGap(ms: number): string {
 
 function FilterBox({ value, onChange }: { value: string; onChange: (next: string) => void }) {
   return (
-    <label className="flex w-48 shrink-0 items-center gap-1 rounded border border-control bg-white px-1.5 py-0.5 focus-within:border-control-strong">
+    // Grows to the 12rem it has always been when there is room, and gives that
+    // width up before the toolbar resorts to wrapping. The 7rem floor is what
+    // still fits a readable filter term.
+    <label className="flex max-w-48 min-w-28 flex-1 items-center gap-1 rounded border border-control bg-white px-1.5 py-0.5 focus-within:border-control-strong">
       <Search className="size-3 shrink-0 text-slate-500" />
       <input
         value={value}
