@@ -250,9 +250,16 @@ export function ToolSetup(props: ToolSetupProps) {
                       // tool has taken away is meant to recede: dashed, struck
                       // through, and too pale to invite a click.
                       'border-dashed border-slate-200 bg-transparent text-slate-300 line-through'
-                    : on
-                      ? 'border-control bg-white text-slate-600 hover:border-control-strong disabled:opacity-40'
-                      : 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 disabled:opacity-40'
+                    : // Both live states carry the same edge, because both are
+                      // settings a reader chose and neither is a problem. The
+                      // fill is the only difference and it stays inside the
+                      // greys: `slate-100` is the darkest ground #63 measured
+                      // `control` against, at 3.18:1. What separates the two
+                      // states is the label, which says `new_str first` or
+                      // `Prompt rules off` in words a screen reader also gets.
+                      `border-control hover:border-control-strong disabled:opacity-40 ${
+                        on ? 'bg-white text-slate-600' : 'bg-slate-100 text-slate-700'
+                      }`
                 }`}
               >
                 {inert ? entry.label : on ? entry.label : entry.offLabel}
@@ -263,13 +270,20 @@ export function ToolSetup(props: ToolSetupProps) {
       </div>
 
       {/* Kept rather than hidden the way the header's document description is.
-          That one had a tooltip on the select beside it carrying the same
-          sentence. This legend has none, and nothing else on screen says what
-          amber means. A row of its own costs one line and reads at any width. */}
+          A row of its own costs one line and reads at any width.
+
+          It no longer branches on the tool. The built-in half glossed
+          `Server-defined`, a term this row never prints, and the rest of what it
+          said is on the select's own tooltip a few pixels to the left. That is
+          the same test #58 used to let the header's description go. It also
+          meant that picking the built-in tool took the switch legend off screen
+          while Prompt rules was still live and still settable.
+
+          What survives is the half a label cannot carry. Each button names the
+          state it is in, so the one thing left to say is which state it started
+          in and what moving it costs. */}
       <span className="text-[11px] text-slate-600 lg:ml-auto">
-        {builtin
-          ? 'Server-defined means the schema. This app still runs the call and returns the result.'
-          : 'Amber means changed from the shipping default.'}
+        Every switch ships on. Flip one and this app sends a different request.
       </span>
     </div>
   )
