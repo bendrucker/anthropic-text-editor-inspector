@@ -179,9 +179,38 @@ export function ToolSetup(props: ToolSetupProps) {
           onValueChange={(next) => props.onEditorTool(next as EditorTool)}
           disabled={props.disabled}
         >
-          <SelectTrigger aria-label="Editor tool" className="py-0.5">
-            <SelectValue />
-          </SelectTrigger>
+          {/* The tooltip wraps the trigger rather than the select, because
+              `Select` is context and renders no element for `asChild` to attach
+              hover and focus to.
+
+              Both options get described. The trigger already reads back the
+              current tool, so what a reader is missing is the other one: which
+              of the switches beside it survive the swap, and why. The
+              per-option notes answer that only while the list is open, which is
+              after the choice has been made. */}
+          <Tooltip
+            disabled={props.disabled}
+            content={
+              <div className="space-y-2">
+                <p>
+                  <span className="font-semibold text-slate-50">Custom str_replace</span> lets this
+                  app write the schema. It can declare <code>old_str</code> before{' '}
+                  <code>new_str</code> and set <code>eager_input_streaming</code>, which is what
+                  the two switches beside it control.
+                </p>
+                <p>
+                  <span className="font-semibold text-slate-50">Built-in text editor</span> hands
+                  the schema to Anthropic. <code>text_editor_20250728</code> has no{' '}
+                  <code>eager_input_streaming</code> field and no property list to reorder, so both
+                  of those switches go inert. The call still comes back for this app to run.
+                </p>
+              </div>
+            }
+          >
+            <SelectTrigger aria-label="Editor tool" className="py-0.5">
+              <SelectValue />
+            </SelectTrigger>
+          </Tooltip>
           <SelectContent>
             {EDITOR_TOOLS.map((option) => (
               <SelectItem
