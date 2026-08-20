@@ -191,7 +191,7 @@ export function generateDocument(seed: number): LibraryDocument {
   return {
     id: `generated-${seed}`,
     title: `${domain.title} (seed ${seed})`,
-    description: `Generated from seed ${seed}. Repeats are planted, so the traps are real.`,
+    description: `Generated from seed ${seed}. Repeats are planted, so a naive old_str is ambiguous.`,
     markdown: blocks.join('\n\n'),
     prompts: [`Tighten the ${sectionA} section.`, `Make the ${sectionC} section more direct.`],
   }
