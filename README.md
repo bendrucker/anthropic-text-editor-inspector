@@ -12,8 +12,6 @@
 
 This application is bring-your-own-key (BYOK). You must first create an [API key](https://platform.claude.com/dashboard) from your Claude organization. This key is stored on your device and only sent to Anthropic's servers.
 
-Step three is the point. Schema key order decides how early anything downstream can act on a tool call.
-
 ## Sequence
 
 ```mermaid
@@ -55,7 +53,7 @@ Match semantics follow Claude Code's `Edit` tool. Matches must be exact and uniq
 
 ## CORS
 
-Organizations with [zero data retention](https://code.claude.com/docs/en/zero-data-retention) enabled cannot call Anthropic APIs directly from the browser. You must use a native build or clone and `bun run dev`.
+Organizations with [zero data retention](https://platform.claude.com/docs/en/manage-claude/api-and-data-retention#what-zdr-does-not-cover) enabled cannot call Anthropic APIs directly from the browser. The [macOS desktop build](https://github.com/bendrucker/anthropic-text-editor-inspector/releases) issues requests from Rust, so it works with those keys. Cloning and running `bun run dev` works too, since the dev server forwards the request. Build the desktop app yourself with `bun run desktop:build`.
 
 ## Stack
 
@@ -71,4 +69,4 @@ Organizations with [zero data retention](https://code.claude.com/docs/en/zero-da
 bun run build
 ```
 
-It is is a single-page web app, so you can open the resulting `index.html` file. Use `build:single` to build a self-contained `index.html` with no external scripts or styles.
+The build emits a `dist/` directory that has to be served, which `bun run preview` does locally. Use `build:single` for a self-contained `index.html` with no external scripts or styles, which does open straight from disk.
