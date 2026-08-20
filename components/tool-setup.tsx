@@ -38,8 +38,12 @@ interface Switch {
    * glance.
    */
   states: Record<'on' | 'off', ToggleState>
-  /** True for a switch that exists only because this app writes the schema. */
-  schemaBound?: boolean
+  /**
+   * Why the built-in tool cannot express this switch, for the switches that
+   * exist only because this app writes the schema. What is missing differs per
+   * switch, so one shared explanation answers half of each.
+   */
+  unavailable?: React.ReactNode
 }
 
 const SWITCHES: Switch[] = [
@@ -49,7 +53,7 @@ const SWITCHES: Switch[] = [
     offLabel: 'Prompt rules off',
     states: {
       on: {
-        name: 'On',
+        name: 'stated',
         body: (
           <>
             The system prompt states both constraints up front: <code>old_str</code> must match
@@ -60,7 +64,7 @@ const SWITCHES: Switch[] = [
         ),
       },
       off: {
-        name: 'Off',
+        name: 'unstated',
         body: (
           <>
             Nothing states the constraints, so the model is working from its own training. Measured
@@ -76,7 +80,13 @@ const SWITCHES: Switch[] = [
     key: 'oldStrFirst',
     label: 'old_str first',
     offLabel: 'new_str first',
-    schemaBound: true,
+    unavailable: (
+      <>
+        <code>text_editor_20250728</code> declares its own parameters and this app never writes
+        them, so there is no property list to put <code>old_str</code> in front of. Switch to the
+        custom <code>str_replace</code> to control the order.
+      </>
+    ),
     states: {
       on: {
         name: <code>old_str</code>,
@@ -104,10 +114,17 @@ const SWITCHES: Switch[] = [
     key: 'eagerStreaming',
     label: 'Eager streaming',
     offLabel: 'Eager streaming off',
-    schemaBound: true,
+    unavailable: (
+      <>
+        <code>eager_input_streaming</code> is a field on user-defined tools, and{' '}
+        <code>text_editor_20250728</code> has no slot for it. Nothing in the request can ask for
+        unvalidated fragments, so there is no setting here to turn on. Switch to the custom{' '}
+        <code>str_replace</code> to send it.
+      </>
+    ),
     states: {
       on: {
-        name: 'On',
+        name: 'eager',
         body: (
           <>
             <code>eager_input_streaming</code> sends <code>input_json_delta</code> fragments
@@ -118,7 +135,7 @@ const SWITCHES: Switch[] = [
         ),
       },
       off: {
-        name: 'Off',
+        name: 'validated',
         body: (
           <>
             Tool input arrives in validated bursts, so there is no partial <code>old_str</code> to
@@ -129,14 +146,6 @@ const SWITCHES: Switch[] = [
     },
   },
 ]
-
-const NOT_APPLICABLE = (
-  <>
-    The built-in tool has no property list to reorder and no <code>eager_input_streaming</code>{' '}
-    field. That field is documented as available on user-defined tools only. Switch back to the
-    custom <code>str_replace</code> to use this.
-  </>
-)
 
 /**
  * The tool's own configuration, kept on screen rather than buried in code,
@@ -175,14 +184,14 @@ export function ToolSetup(props: ToolSetupProps) {
 
       {SWITCHES.map((entry) => {
         const on = props[entry.key]
-        const inert = builtin && entry.schemaBound
+        const inert = builtin && entry.unavailable !== undefined
 
         return (
           <Tooltip
             key={entry.key}
             content={
               inert ? (
-                NOT_APPLICABLE
+                entry.unavailable
               ) : (
                 <TooltipStates states={entry.states} current={on ? 'on' : 'off'} />
               )
