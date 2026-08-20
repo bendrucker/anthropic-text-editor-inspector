@@ -18,7 +18,6 @@ interface ChatPaneProps {
   /** Edits that read naturally against the open document. */
   prompts: string[]
   traps: Trap[]
-  /** Prompts, replies, and tool calls in the order they arrived. */
   conversation: ConversationItem[]
   runs: Run[]
   running: boolean
@@ -237,7 +236,7 @@ const STATUS_LABELS: Record<EditRecord['status'], string> = {
  *
  * `old_str` and `new_str` appear as the matcher will read them, with whichever
  * one is still open marked as such. The raw buffer, the fragment payloads, and
- * the event timings are the run inspector's, not this card's.
+ * the event timings belong to the run inspector.
  */
 function EditCard({ edit, onRevert }: { edit: EditRecord; onRevert: (edit: EditRecord) => void }) {
   const path = edit.applyPath ? APPLY_PATHS[edit.applyPath] : null

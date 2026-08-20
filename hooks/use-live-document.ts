@@ -144,7 +144,7 @@ export function useLiveDocument() {
     calls: RecordedCall[]
     handlers: AgentHandlers
     snapshot: string
-    /** Where the run started, so a replay can retell it rather than repeat it. */
+    /** Where the run started. A replay rewinds the conversation here first. */
     promptId: string
   } | null>(null)
   const replayTimers = useRef<number[]>([])
@@ -596,9 +596,9 @@ export function useLiveDocument() {
           ),
         )
 
-        // Everything below is one-per-app rather than one-per-run. Stop lets
-        // this run's promise settle on its own, so a newer run can already own
-        // the editor and the controller by now, and this cleanup would undo it.
+        // Everything below is one-per-app. Stop lets this run's promise settle
+        // on its own, so a newer run can already own the editor and the
+        // controller by now, and this cleanup would undo it.
         if (current()) {
           if (turnHistory) history.current = turnHistory
           recording.current = { calls, handlers, snapshot, promptId }
