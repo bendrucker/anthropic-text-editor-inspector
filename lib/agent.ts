@@ -137,11 +137,24 @@ export interface EditTiming {
   toolStartMs: number
   targetMs: number
   /**
+   * When the turn that produced this edit was requested, and which turn it was.
+   *
+   * Every clock here is measured from the run, not from the turn, so on a retry
+   * `firstByteMs` covers the turns before this one as well. Subtracting
+   * `retriesMs` is what separates a round trip from a second attempt.
+   */
+  retriesMs?: number
+  turn?: number
+  /** Length of the target, which bounds how long a replacement can stream for. */
+  oldStrChars?: number
+  /**
    * The first three are measured here, from wire events. These last three are
    * filled in by whoever owns the document, because only it can say when a
    * change reached the screen and when the run finally stopped.
    */
   paintMs?: number
+  /** The first paint carrying replacement text, which is where landing starts. */
+  textPaintMs?: number
   settledMs?: number
   totalMs?: number
 }
@@ -407,6 +420,7 @@ export async function runEdit(options: RunOptions): Promise<void> {
 
   for (;;) {
     turnNumber += 1
+    const turnStartedAt = since()
     record({
       label: `request sent (turn ${turnNumber})`,
       detail: [
@@ -533,7 +547,14 @@ export async function runEdit(options: RunOptions): Promise<void> {
           // `targetMs` is the run's first target, kept for the timing summary.
           // A second edit resolves its own target later and says so.
           elapsedMs: since(),
-          timing: { firstByteMs: firstByteMs ?? targetMs, toolStartMs: toolStartMs ?? targetMs, targetMs },
+          timing: {
+            firstByteMs: firstByteMs ?? targetMs,
+            toolStartMs: toolStartMs ?? targetMs,
+            targetMs,
+            retriesMs: turnStartedAt,
+            turn: turnNumber,
+            oldStrChars: parsed.oldStr.length,
+          },
         })
       }
 

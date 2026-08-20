@@ -7,7 +7,7 @@ import type { Run } from '@/hooks/use-live-document'
 import { EventConsole } from './event-console'
 import { Tooltip } from './ui/tooltip'
 import { MatchSandbox } from './match-sandbox'
-import { RunHistory } from './run-controls'
+import { RunHistory } from './run-summary'
 
 interface RunInspectorProps {
   timeline: TimelineEntry[]
