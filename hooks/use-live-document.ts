@@ -586,6 +586,8 @@ export function useLiveDocument() {
         return
       }
 
+      // Where the run started, which is what a replay rewinds to. Each edit
+      // keeps its own snapshot separately, since a run can land several.
       const snapshot = serialize(editor.getJSON())
       const framed = selection
         ? `Within this exact passage of the document:\n\n${selection}\n\n${prompt}`
@@ -633,6 +635,17 @@ export function useLiveDocument() {
       // Which cards this run put on screen, so its cleanup can settle its own
       // without reaching into a run that started after it.
       const ownEdits = new Set<string>()
+      // The document as it stood just before each call touched it. Taken on
+      // first sight of the call, which is while `old_str` is still arriving and
+      // so before any of this call's characters can have landed.
+      const beforeCall = new Map<string, string>()
+      const documentBefore = (id: string) => {
+        const taken = beforeCall.get(id)
+        if (taken !== undefined) return taken
+        const now = serialize(editor.getJSON())
+        beforeCall.set(id, now)
+        return now
+      }
 
       const handlers: AgentHandlers = {
         onEvent(entry) {
@@ -648,6 +661,7 @@ export function useLiveDocument() {
         onBuffer(state) {
           setBuffer(state)
           ownEdits.add(state.toolUseId)
+          const before = documentBefore(state.toolUseId)
           const scanned = {
             oldStr: state.oldStr ?? '',
             oldStrComplete: state.oldStrComplete,
@@ -675,7 +689,7 @@ export function useLiveDocument() {
               {
                 kind: 'edit',
                 id: state.toolUseId,
-                edit: { ...blankEdit(state.toolUseId, snapshot), ...scanned },
+                edit: { ...blankEdit(state.toolUseId, before), ...scanned },
               },
             ]
           })
@@ -806,7 +820,7 @@ export function useLiveDocument() {
               // the scanner already holds is the only account of what arrived.
               ...(event.oldStr ? { oldStr: event.oldStr } : {}),
             },
-            blankEdit(event.id, snapshot),
+            blankEdit(event.id, documentBefore(event.id)),
           )
           // Closes the hole opened for the rejected edit. Every earlier turn has
           // already landed, and an earlier edit of this same turn lands here, so
@@ -979,18 +993,37 @@ export function useLiveDocument() {
     ],
   )
   /**
-   * Restores the document to the snapshot taken before the edit's run. The card
-   * stays and is marked, since the model did make the call.
+   * Rewinds the document to the moment before this edit ran. Cards stay and are
+   * marked, since the model did make the call.
+   *
+   * That snapshot predates every edit that landed after this one, so restoring
+   * it drops those too and they are marked alongside it. Undoing the most
+   * recent edit therefore undoes exactly that edit, and undoing an earlier one
+   * says on every affected card that its change is gone rather than leaving a
+   * card claiming a change the document no longer holds.
+   *
+   * Replaying the later edits back onto the rewound document is the shape this
+   * deliberately avoids: their `old_str` was written against text this edit had
+   * already changed, so the matcher has no reason to find it. `docs/mechanics.md`
+   * describes why the two are not the same address space.
    */
   const revert = useCallback(
     (edit: EditRecord) => {
       const editor = editorRef.current
       if (!editor) return
       editor.commands.setContent(parse(edit.before), { emitUpdate: false })
-      changeEdit(edit.id, { reverted: true })
+      setConversation((prior) => {
+        const from = prior.findIndex((item) => item.kind === 'edit' && item.edit.id === edit.id)
+        if (from === -1) return prior
+        return prior.map((item, index) =>
+          index >= from && item.kind === 'edit' && item.edit.status === 'applied'
+            ? { ...item, edit: { ...item.edit, reverted: true } }
+            : item,
+        )
+      })
       highlight(null)
     },
-    [changeEdit, highlight],
+    [highlight],
   )
 
   /**
