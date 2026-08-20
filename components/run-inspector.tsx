@@ -4,6 +4,7 @@ import type { BufferState, TimelineEntry } from '@/lib/timeline'
 import type { Match } from '@/lib/str-replace'
 import type { Probe } from '@/lib/traps'
 import { EventConsole } from './event-console'
+import { Tooltip } from './ui/tooltip'
 import { MatchSandbox } from './match-sandbox'
 
 interface RunInspectorProps {
@@ -54,14 +55,32 @@ export function RunInspector({
 
         <span className="flex items-center gap-3">
           {recorded && (
-            <button
-              onClick={() => onReplay(replaying ? undefined : 0.25)}
+            <Tooltip
               disabled={replaying}
-              title="Replays the recorded run through the same handlers at a quarter speed. The live path is untouched."
-              className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-600 transition hover:border-slate-300 disabled:opacity-40"
+              side="top"
+              content={
+                replaying ? (
+                  <>
+                    The replay is already running. It finishes on its own, and the button comes back
+                    when it does.
+                  </>
+                ) : (
+                  <>
+                    Feeds the recorded events back through the same handlers at a quarter speed, so
+                    the fragment-by-fragment arrival that a live run finishes in a second can be
+                    read. Nothing is re-requested and the live path is untouched.
+                  </>
+                )
+              }
             >
-              {replaying ? 'Replaying…' : 'Replay at 0.25x'}
-            </button>
+              <button
+                onClick={() => onReplay(replaying ? undefined : 0.25)}
+                disabled={replaying}
+                className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-600 transition hover:border-slate-300 disabled:opacity-40"
+              >
+                {replaying ? 'Replaying…' : 'Replay at 0.25x'}
+              </button>
+            </Tooltip>
           )}
           <button
             onClick={() => setOpen((prior) => !prior)}

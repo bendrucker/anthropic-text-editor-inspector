@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Tooltip } from './ui/tooltip'
 import { locateEdit } from '@/lib/str-replace'
 import type { Match } from '@/lib/str-replace'
 import type { Probe } from '@/lib/traps'
@@ -47,17 +48,17 @@ export function MatchSandbox({ canonical, probes, onShowMatches }: MatchSandboxP
 
       <div className="flex flex-wrap gap-1">
         {probes.map((probe) => (
-          <button
-            key={probe.label}
-            onClick={() => {
-              setOldStr(probe.oldStr)
-              setProbed((prior) => prior + 1)
-            }}
-            title={probe.note}
-            className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-slate-600 transition hover:border-slate-300"
-          >
-            {probe.label}
-          </button>
+          <Tooltip key={probe.label} content={probe.note} side="top">
+            <button
+              onClick={() => {
+                setOldStr(probe.oldStr)
+                setProbed((prior) => prior + 1)
+              }}
+              className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-slate-600 transition hover:border-slate-300"
+            >
+              {probe.label}
+            </button>
+          </Tooltip>
         ))}
       </div>
 

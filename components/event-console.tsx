@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { ArrowDown, ChevronDown, ChevronRight, Search, Settings2, X } from 'lucide-react'
 import { Popover, PopoverCheck, PopoverContent, PopoverTrigger } from './ui/popover'
+import { Tooltip } from './ui/tooltip'
 import type { TimelineEntry, TimelineSource } from '@/lib/timeline'
 
 interface EventConsoleProps {
@@ -100,7 +101,19 @@ export function EventConsole({ timeline }: EventConsoleProps) {
             active={!mutedSources.has(source)}
             tone={source === 'wire' ? 'wire' : 'plain'}
             count={census.sources[source]}
-            title={source === 'wire' ? 'Events that arrived on the wire' : 'Decisions this app made'}
+            explanation={
+              source === 'wire' ? (
+                <>
+                  Events the API sent: block boundaries, tool input fragments, message deltas.
+                  Hiding them leaves only what this app decided in response.
+                </>
+              ) : (
+                <>
+                  Decisions this app made while reading the stream: a match located or refused, a
+                  highlight moved, a tool result sent back. Hiding them leaves the raw wire.
+                </>
+              )
+            }
             onClick={() => setMutedSources(toggled(mutedSources, source))}
           >
             {source}
@@ -150,7 +163,13 @@ export function EventConsole({ timeline }: EventConsoleProps) {
             active={problemsOnly}
             tone="problem"
             count={census.problems}
-            title="Only the events that went wrong: rejected matches, invalid input, errors sent back to the model"
+            explanation={
+              <>
+                Keeps only the events that went wrong: an <code>old_str</code> that matched nowhere
+                or matched more than once, tool input the schema refused, and the errors handed back
+                to the model. With prompt rules off this is where the retry loop shows up.
+              </>
+            }
             onClick={() => setProblemsOnly((prior) => !prior)}
           >
             problems
@@ -167,15 +186,16 @@ export function EventConsole({ timeline }: EventConsoleProps) {
             </button>
           )}
           <Popover>
-            <PopoverTrigger asChild>
-              <button
-                title="Console settings"
-                aria-label="Console settings"
-                className="rounded border border-transparent p-0.5 text-slate-400 transition hover:border-slate-200 hover:bg-white hover:text-slate-600"
-              >
-                <Settings2 className="size-3.5" />
-              </button>
-            </PopoverTrigger>
+            <Tooltip content="Console settings: what the time column measures, and whether repeated events fold together.">
+              <PopoverTrigger asChild>
+                <button
+                  aria-label="Console settings"
+                  className="rounded border border-transparent p-0.5 text-slate-400 transition hover:border-slate-200 hover:bg-white hover:text-slate-600"
+                >
+                  <Settings2 className="size-3.5" />
+                </button>
+              </PopoverTrigger>
+            </Tooltip>
             <PopoverContent className="w-60">
               <PopoverCheck checked={showGaps} onChange={setShowGaps}>
                 Time column shows the gap
@@ -302,9 +322,9 @@ const TONES: Record<string, string> = {
   normal: 'text-slate-700',
 }
 
-const SOURCE_TITLE: Record<TimelineSource, string> = {
-  wire: 'Arrived on the wire',
-  app: 'A decision this app made',
+const SOURCE_EXPLANATION: Record<TimelineSource, ReactNode> = {
+  wire: 'Arrived on the wire exactly as the API sent it.',
+  app: 'A decision this app made while reading the stream, not something the API sent.',
 }
 
 function EventRow({
@@ -327,9 +347,11 @@ function EventRow({
   const { name, qualifier } = splitLabel(entry.label)
   const openable = entry.detail !== undefined || entry.raw !== undefined
   const label = (
-    <span className={`truncate font-mono ${TONES[entry.tone ?? 'normal']}`} title={name}>
-      <Highlight text={name} query={query} />
-    </span>
+    <Tooltip content={<span className="font-mono">{name}</span>}>
+      <span className={`truncate font-mono ${TONES[entry.tone ?? 'normal']}`}>
+        <Highlight text={name} query={query} />
+      </span>
+    </Tooltip>
   )
 
   return (
@@ -345,13 +367,14 @@ function EventRow({
         className={`${COLUMNS} py-0.5 ${openable ? 'cursor-pointer hover:bg-slate-100/70' : ''}`}
       >
         <Clock at={stamp} gaps={gaps} />
-        <span
-          role="cell"
-          className={`font-medium ${entry.source === 'wire' ? 'text-blue-500' : 'text-slate-400'}`}
-          title={SOURCE_TITLE[entry.source]}
-        >
-          {entry.source}
-        </span>
+        <Tooltip content={SOURCE_EXPLANATION[entry.source]}>
+          <span
+            role="cell"
+            className={`font-medium ${entry.source === 'wire' ? 'text-blue-500' : 'text-slate-400'}`}
+          >
+            {entry.source}
+          </span>
+        </Tooltip>
 
         <span role="cell" className="flex min-w-0 items-baseline gap-1">
           {openable ? (
@@ -478,13 +501,14 @@ function GroupRow({
         className={`${COLUMNS} cursor-pointer py-0.5 hover:bg-slate-100/70`}
       >
         <Clock at={row.stamp} gaps={gaps} />
-        <span
-          role="cell"
-          className={`font-medium ${row.source === 'wire' ? 'text-blue-500' : 'text-slate-400'}`}
-          title={SOURCE_TITLE[row.source]}
-        >
-          {row.source}
-        </span>
+        <Tooltip content={SOURCE_EXPLANATION[row.source]}>
+          <span
+            role="cell"
+            className={`font-medium ${row.source === 'wire' ? 'text-blue-500' : 'text-slate-400'}`}
+          >
+            {row.source}
+          </span>
+        </Tooltip>
 
         <span role="cell" className="flex min-w-0 items-baseline gap-1">
           {/* Folding hides rows rather than a panel, so the disclosure points at
@@ -537,28 +561,33 @@ function Twisty({ open, shown, nested }: { open?: boolean; shown: boolean; neste
 function Clock({ at, gaps }: { at?: Stamp; gaps: boolean }) {
   if (!at?.stamped) {
     return (
-      <span
-        role="cell"
-        className="text-right text-slate-300"
-        title="Recorded without an elapsed time"
+      <Tooltip
+        content={
+          <>
+            Recorded without an elapsed time. This decision was made outside the stream, so printing
+            the zero it was given would put it back at the start of a run it ended.
+          </>
+        }
       >
-        —
-      </span>
+        <span role="cell" className="text-right text-slate-300">
+          —
+        </span>
+      </Tooltip>
     )
   }
 
   return (
-    <span
-      role="cell"
-      className="text-right tabular-nums text-slate-400"
-      title={
+    <Tooltip
+      content={
         gaps
           ? `${formatElapsed(at.atMs)} into the run`
           : `${formatGap(at.gapMs)} after the previous event`
       }
     >
-      {gaps ? formatGap(at.gapMs) : formatElapsed(at.atMs)}
-    </span>
+      <span role="cell" className="text-right tabular-nums text-slate-400">
+        {gaps ? formatGap(at.gapMs) : formatElapsed(at.atMs)}
+      </span>
+    </Tooltip>
   )
 }
 
@@ -584,14 +613,15 @@ function FilterBox({ value, onChange }: { value: string; onChange: (next: string
         className="min-w-0 flex-1 bg-transparent text-[11px] text-slate-700 placeholder:text-slate-300 focus:outline-none"
       />
       {value && (
-        <button
-          onClick={() => onChange('')}
-          title="Clear the filter"
-          aria-label="Clear the filter"
-          className="shrink-0 text-slate-300 hover:text-slate-500"
-        >
-          <X className="size-3" />
-        </button>
+        <Tooltip content="Clear the filter. Escape does the same from inside the box.">
+          <button
+            onClick={() => onChange('')}
+            aria-label="Clear the filter"
+            className="shrink-0 text-slate-300 hover:text-slate-500"
+          >
+            <X className="size-3" />
+          </button>
+        </Tooltip>
       )}
     </label>
   )
@@ -607,29 +637,30 @@ function Chip({
   active,
   tone,
   count,
-  title,
+  explanation,
   onClick,
   children,
 }: {
   active: boolean
   tone: keyof typeof CHIP_TONES
   count: number
-  title: string
+  explanation: ReactNode
   onClick: () => void
   children: ReactNode
 }) {
   return (
-    <button
-      onClick={onClick}
-      title={title}
-      aria-pressed={active}
-      className={`flex shrink-0 items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-medium transition ${
-        active ? CHIP_TONES[tone] : 'border-transparent bg-transparent text-slate-300 hover:text-slate-400'
-      }`}
-    >
-      {children}
-      <span className="tabular-nums opacity-70">{count}</span>
-    </button>
+    <Tooltip content={explanation}>
+      <button
+        onClick={onClick}
+        aria-pressed={active}
+        className={`flex shrink-0 items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-medium transition ${
+          active ? CHIP_TONES[tone] : 'border-transparent bg-transparent text-slate-300 hover:text-slate-400'
+        }`}
+      >
+        {children}
+        <span className="tabular-nums opacity-70">{count}</span>
+      </button>
+    </Tooltip>
   )
 }
 

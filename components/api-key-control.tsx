@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import * as Popover from '@radix-ui/react-popover'
 import { keyStore, looksLikeAnthropicKey } from '@/lib/api-key'
+import { Tooltip } from './ui/tooltip'
 
 interface ApiKeyControlProps {
   apiKey: string | null
@@ -14,12 +15,14 @@ export function ApiKeyControl(props: ApiKeyControlProps) {
 /** Nothing to enter or clear, so the badge only says where the key came from. */
 function EnvironmentKeyBadge() {
   return (
-    <span
-      title={keyStore.description}
-      className="rounded-md border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-500"
-    >
-      Key from dev server
-    </span>
+    <Tooltip content={keyStore.description}>
+      <span
+        tabIndex={0}
+        className="rounded-md border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-500"
+      >
+        Key from dev server
+      </span>
+    </Tooltip>
   )
 }
 

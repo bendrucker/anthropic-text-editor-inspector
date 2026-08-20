@@ -1,5 +1,7 @@
+import type { ReactNode } from 'react'
 import { SYNTHETIC_PATH, type EditorTool } from '@/lib/agent'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
+import { Tooltip } from './ui/tooltip'
 
 interface ToolSetupProps {
   editorTool: EditorTool
@@ -31,7 +33,7 @@ interface Switch {
   label: string
   /** What the run does when the switch is off, which is the interesting half. */
   offLabel: string
-  title: string
+  explanation: ReactNode
   /** True for a switch that exists only because this app writes the schema. */
   schemaBound?: boolean
 }
@@ -41,28 +43,54 @@ const SWITCHES: Switch[] = [
     key: 'guardrails',
     label: 'Prompt rules',
     offLabel: 'Prompt rules off',
-    title:
-      'On, the system prompt pre-teaches uniqueness and table padding and the model rarely trips. Off, it learns the same constraints from tool results, so the retry loop actually runs.',
+    explanation: (
+      <>
+        On, the system prompt pre-teaches the two constraints a first attempt usually trips over:
+        that <code>old_str</code> must match exactly once, and that table cells carry alignment
+        padding that has to be reproduced. The model rarely fails, which also means the retry loop
+        never runs where you can watch it. Off, the same constraints reach the model only as tool
+        results after a rejected edit, so the console shows it learning them mid-run.
+      </>
+    ),
   },
   {
     key: 'oldStrFirst',
     label: 'old_str first',
     offLabel: 'new_str first',
     schemaBound: true,
-    title:
-      'Models emit tool input in schema order. Declaring old_str first means the target is known while the replacement streams. Flip it and the document sits inert until the very end. Order-follows-schema is observed behavior, not a spec guarantee.',
+    explanation: (
+      <>
+        Models emit tool input in the order the schema declares the properties. Declaring{' '}
+        <code>old_str</code> first means the target text is known and can be highlighted while the
+        replacement is still streaming in. Flip the order and the document sits inert until the last
+        fragment arrives, because there is nothing to point at until then. That models follow schema
+        order is observed behavior, not a guarantee the API makes.
+      </>
+    ),
   },
   {
     key: 'eagerStreaming',
     label: 'Eager streaming',
     offLabel: 'Eager streaming off',
     schemaBound: true,
-    title:
-      'On, unvalidated input_json_delta fragments arrive as the model types them. Off, tool input lands in validated bursts and nothing can render early.',
+    explanation: (
+      <>
+        On, <code>eager_input_streaming</code> sends unvalidated <code>input_json_delta</code>{' '}
+        fragments as the model types them, which is what lets the buffer be scanned for a field that
+        has not closed yet. Off, tool input lands in validated bursts, so there is no partial{' '}
+        <code>old_str</code> to read and nothing can render before the edit is complete.
+      </>
+    ),
   },
 ]
 
-const NOT_APPLICABLE = 'Not available on the built-in tool'
+const NOT_APPLICABLE = (
+  <>
+    The built-in tool has no property list to reorder and no <code>eager_input_streaming</code>{' '}
+    field. That field is documented as available on user-defined tools only. Switch back to the
+    custom <code>str_replace</code> to use this.
+  </>
+)
 
 /**
  * The tool's own configuration, kept on screen rather than buried in code,
@@ -104,22 +132,26 @@ export function ToolSetup(props: ToolSetupProps) {
         const inert = builtin && entry.schemaBound
 
         return (
-          <button
+          <Tooltip
             key={entry.key}
-            onClick={() => setters[entry.key](!on)}
-            aria-pressed={inert ? undefined : on}
+            content={inert ? NOT_APPLICABLE : entry.explanation}
             disabled={props.disabled || inert}
-            title={inert ? NOT_APPLICABLE : entry.title}
-            className={`rounded-md border px-2 py-0.5 text-[11px] font-medium transition disabled:cursor-not-allowed ${
-              inert
-                ? 'border-dashed border-slate-200 bg-transparent text-slate-300 line-through'
-                : on
-                  ? 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 disabled:opacity-40'
-                  : 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 disabled:opacity-40'
-            }`}
           >
-            {inert ? entry.label : on ? entry.label : entry.offLabel}
-          </button>
+            <button
+              onClick={() => setters[entry.key](!on)}
+              aria-pressed={inert ? undefined : on}
+              disabled={props.disabled || inert}
+              className={`rounded-md border px-2 py-0.5 text-[11px] font-medium transition disabled:cursor-not-allowed ${
+                inert
+                  ? 'border-dashed border-slate-200 bg-transparent text-slate-300 line-through'
+                  : on
+                    ? 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 disabled:opacity-40'
+                    : 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 disabled:opacity-40'
+              }`}
+            >
+              {inert ? entry.label : on ? entry.label : entry.offLabel}
+            </button>
+          </Tooltip>
         )
       })}
 
