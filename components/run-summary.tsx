@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { findModel, findEffort } from '@/lib/models'
 import { Tooltip } from './ui/tooltip'
 import type { EditTiming } from '@/lib/agent'
-import type { Run } from '@/hooks/use-live-document'
+import type { NoEditReason, Run } from '@/hooks/use-live-document'
 
 /**
  * What a run spent, and how little of it reached the screen.
@@ -289,6 +289,30 @@ function headline(timing: EditTiming, landed: boolean): string {
 }
 
 /**
+ * Which failure a run that landed nothing hit.
+ *
+ * The headline above says an edit did not land and the bar says what reaching
+ * that point cost, and neither can say why, because a refused run borrows the
+ * timing of the attempt that failed. Those spans are real. They just describe a
+ * target the matcher went on to refuse, so nothing in them separates a model
+ * that never called the tool from one whose `old_str` matched three places.
+ *
+ * Each sentence names the mechanism rather than the outcome, because the three
+ * refusals are recovered from in different ways and only the app knows which
+ * one it sent back.
+ */
+const REASONS: Record<NoEditReason, string> = {
+  'never-called':
+    'The model answered without calling the tool, so no target was ever resolved against the document.',
+  'no-target':
+    'old_str matched nothing. The matcher compares exact text, whitespace and punctuation included, and this is the one refusal a model cannot resolve by looking harder.',
+  ambiguous:
+    'old_str matched more than one place, so there was no single target to replace. Extending it until it is unique resolves this, and so does replace_all.',
+  refused:
+    'The call was refused before the matcher saw a target: a command this document has no answer for, or input that never became valid JSON.',
+}
+
+/**
  * Silent on a refused run. Its `settledMs` is the restore, so every sentence
  * here would date the document's last change to an edit being taken back off
  * the screen, and the tail would be time measured from that.
@@ -333,6 +357,14 @@ function RunRow({
     ? Math.round(((timing.totalMs - timing.settledMs) / timing.totalMs) * 100)
     : null
 
+  // A run refused before its `old_str` closed never reached a target, so it has
+  // no timing to borrow and draws no bar. The reason is then the only thing the
+  // row has to say, which is why it is rendered outside the timing block too.
+  const reason =
+    expanded && !landed && run.noEdit ? (
+      <p className="text-[10px] text-slate-500">{REASONS[run.noEdit]}</p>
+    ) : null
+
   return (
     <li className="text-xs">
       <button
@@ -360,6 +392,7 @@ function RunRow({
           {expanded && (
             <>
               <p className="text-[11px] text-slate-600">{headline(timing, landed)}</p>
+              {reason}
               {(timing.turn ?? 1) > 1 && (
                 <p className="text-[10px] text-slate-500">
                   {landed ? 'Reached the edit on turn' : 'Gave up on turn'} {timing.turn}, after{' '}
@@ -389,6 +422,8 @@ function RunRow({
           )}
         </div>
       )}
+
+      {!timing && reason && <div className="mt-1">{reason}</div>}
     </li>
   )
 }
