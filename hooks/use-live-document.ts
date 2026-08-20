@@ -130,6 +130,21 @@ export const APPLY_PATHS: Record<ApplyPath, { label: string; summary: string; du
   },
 }
 
+/**
+ * Brings a document position on screen.
+ *
+ * The editor's own `scrollIntoView()` cannot: it walks up from the DOM
+ * selection's node, and while the editor is unfocused that node is wherever the
+ * user last clicked, which is the inspector button that asked for the scroll.
+ * Scrolling the target's own node lets the browser find the right container.
+ */
+function scrollToPosition(editor: Editor, pos: number) {
+  const { node, offset } = editor.view.domAtPos(pos)
+  const at = node.nodeType === Node.ELEMENT_NODE ? (node.childNodes[offset] ?? node) : node
+  const element = at.nodeType === Node.ELEMENT_NODE ? (at as Element) : at.parentElement
+  element?.scrollIntoView({ block: 'center' })
+}
+
 export function useLiveDocument() {
   const editorRef = useRef<Editor | null>(null)
   const streams = useRef(new Map<string, StreamState>())
@@ -240,7 +255,7 @@ export function useLiveDocument() {
 
     if (ranges.length > 0) {
       highlight(ranges)
-      editor.commands.scrollIntoView()
+      scrollToPosition(editor, ranges[0].from)
     }
   }, [highlight])
 
@@ -323,6 +338,7 @@ export function useLiveDocument() {
           variant: 'writing',
         }),
       )
+      scrollToPosition(editor, from)
 
       paintFrames.current?.touched()
       streams.current.set(id, {
@@ -332,7 +348,6 @@ export function useLiveDocument() {
         textPainted: false,
         textPaintedAtMs: null,
       })
-      editor.commands.scrollIntoView()
       return target.kind
     },
     [],
@@ -510,6 +525,11 @@ export function useLiveDocument() {
       // Held locally because handlers run before state settles.
       let firstEditMs: number | null = null
       let firstTiming: EditTiming | null = null
+      // When each open call closed its `old_str`, until that call either
+      // commits or is rejected. A rejected `old_str` left the document where it
+      // was, so its timestamp is not a time to first edit, and on an ambiguity
+      // trap the rejected attempt is the one that arrives first.
+      const started = new Map<string, { elapsedMs: number; timing: EditTiming }>()
       let turnHistory: ConversationTurn[] | null = null
       // Which cards this run put on screen, so its cleanup can settle its own
       // without reaching into a run that started after it.
@@ -570,11 +590,9 @@ export function useLiveDocument() {
         },
 
         onEditStart(event) {
-          firstEditMs ??= event.elapsedMs
-          firstTiming ??= event.timing
-          setTimeToFirstEdit((prior) => prior ?? event.elapsedMs)
-
           const applyPath = beginEdit(event.id, event.oldStr) ?? undefined
+          started.set(event.id, { elapsedMs: event.elapsedMs, timing: event.timing })
+
           record({
             atMs: event.elapsedMs,
             label: applyPath ? `target resolved · ${applyPath}` : 'target not found yet',
@@ -609,6 +627,14 @@ export function useLiveDocument() {
         },
 
         onEditCommit(event) {
+          const opened = started.get(event.id)
+          started.delete(event.id)
+          if (opened) {
+            firstEditMs ??= opened.elapsedMs
+            firstTiming ??= opened.timing
+            setTimeToFirstEdit((prior) => prior ?? opened.elapsedMs)
+          }
+
           changeEdit(event.id, {
             status: 'applied',
             oldStr: event.oldStr,
@@ -639,6 +665,7 @@ export function useLiveDocument() {
         },
 
         onEditRejected(event) {
+          started.delete(event.id)
           record({
             atMs: event.elapsedMs,
             label:
