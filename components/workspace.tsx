@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import { Code } from 'lucide-react'
 import { useLiveDocument } from '@/hooks/use-live-document'
 import { DocumentPane } from './document-pane'
 import { ChatPane } from './chat-pane'
@@ -7,6 +8,36 @@ import { RunInspector } from './run-inspector'
 import { ToolSetup } from './tool-setup'
 import { ApiKeyControl } from './api-key-control'
 import { DocumentPicker } from './document-picker'
+import { Tooltip } from './ui/tooltip'
+
+const SOURCE_URL = 'https://github.com/bendrucker/anthropic-text-editor-inspector'
+
+/**
+ * lucide dropped its brand icons, so there is no GitHub mark to import at any
+ * version this app can install. `Code` is the next closest thing on offer and
+ * says the same thing about the destination. The word GitHub lives in the
+ * accessible name and the tooltip, which is where it is legible anyway.
+ *
+ * `slate-500` is the floor rather than the aesthetic pick. The glyph is the
+ * whole control, so 1.4.11 applies to it the way #63 applied it to a border,
+ * and `slate-400` is the 2.63:1 that PR measured and rejected. It also happens
+ * to be what the quietest text in this header already uses.
+ */
+function SourceLink() {
+  return (
+    <Tooltip content="This app's source on GitHub.">
+      <a
+        href={SOURCE_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Source on GitHub"
+        className="focus-ring shrink-0 rounded text-slate-500 transition hover:text-slate-700"
+      >
+        <Code className="h-4 w-4" />
+      </a>
+    </Tooltip>
+  )
+}
 
 export function Workspace() {
   const doc = useLiveDocument()
@@ -23,7 +54,14 @@ export function Workspace() {
           halves stack, because the alternative is every control in the right
           half wrapping its own label into a column. */}
       <header className="flex flex-col gap-2 border-b border-slate-200 px-6 py-3 md:flex-row md:items-center md:justify-between">
+        {/* Far right is where a source link usually goes, and it does not fit
+            there. At 480 the controls half is 407px of content in a 432px row,
+            and an icon plus that half's gap needs 32: it wraps, and the header
+            grows from 94px to 118px. This half is the one built to give way, so
+            the 28px comes out of the description, which truncates for a living
+            and still reads 271px wide at 1024. */}
         <div className="flex min-w-0 items-center gap-3">
+          <SourceLink />
           <DocumentPicker
             document={doc.document}
             generated={doc.generated}
