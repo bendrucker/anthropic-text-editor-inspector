@@ -689,23 +689,31 @@ function Unstamped() {
 }
 
 /**
- * A row whose clock precedes the row above ended no wait, so there is no
- * duration to print. The dash is the same one an unstamped row prints, and the
- * pair still reads apart: this row keeps its elapsed time and an unstamped one
- * has none to keep.
+ * A row stamped earlier than the event before it ended no wait, so there is no
+ * duration to print.
+ *
+ * It prints a word where an unstamped row prints a dash. Sharing the dash made
+ * two different facts look like one missing value, and a missing value is what
+ * a reader already suspects when Time descends: the number above looks wrong
+ * and nothing beside it disagrees. A word is visibly deliberate, which is the
+ * whole difference between a console that knows and one that has a sort bug.
+ * The tooltip carries the reason, as it does everywhere else here.
+ *
+ * Measured against the preceding timeline event rather than the row drawn
+ * above, which under a filter can be another event entirely or none at all.
  */
 function NoGap() {
   return (
     <Tooltip
       content={
         <>
-          No wait to measure. The row above is stamped later than this one, so the interval between
-          them runs backwards.
+          No wait to measure. This event is stamped earlier than the one before it, so the interval
+          between them runs backwards.
         </>
       }
     >
       <span role="cell" className="text-right text-slate-600">
-        —
+        back
       </span>
     </Tooltip>
   )
@@ -719,10 +727,10 @@ function Clock({ at }: { at?: Stamp }) {
       content={
         at.backwards ? (
           <>
-            {formatElapsed(at.atMs)} into the run, which is earlier than the row above. Both are
-            measured from the same start, but one is a wire event and the other is a frame, and a
-            frame can land after the stream that caused it has closed. The list is in arrival order
-            and nothing re-sorts it, so the two are printed where they arrived.
+            {formatElapsed(at.atMs)} into the run, which is earlier than the event before it. Both
+            are measured from the same start, but one is a wire event and the other is a frame, and
+            a frame can land after the stream that caused it has closed. The list is in arrival
+            order and nothing re-sorts it, so the two are printed where they arrived.
           </>
         ) : (
           `${formatElapsed(at.atMs)} into the run`
@@ -916,12 +924,16 @@ interface Stamp {
   /** Whether the wait this row ended began at the request that opened its turn. */
   afterHead: boolean
   /**
-   * Whether this row's clock reads earlier than the row above it.
+   * Whether this row's clock reads earlier than the timeline event before it.
    *
    * Paints and wire events are stamped on the same axis but by different
    * things, so a frame can land after the stream that caused it has closed.
    * Arrival order then puts a larger number above a smaller one, and Time stops
    * being a column a reader can follow downwards.
+   *
+   * Taken over the whole timeline, like the gap beside it, so a filtered row
+   * still reports what actually preceded it. The row drawn above is therefore
+   * not what this compares against, and nothing that reads it may say so.
    */
   backwards: boolean
 }
