@@ -180,7 +180,9 @@ A third case covers input that never became valid JSON, which eager streaming ma
 
 The loop pushes the results as a user message and starts another turn. The model reads "matched 4 times, extend it with surrounding text", extends `old_str`, and calls again.
 
-Turning `Prompt rules` off drops the uniqueness and padding rules from the system prompt. It does not reliably produce a rejection. Across 217 attempts against this app's ambiguous strings, 3 were refused, and none by the mechanism the panel describes. Current models settle an ambiguous `old_str` before they call the tool: they extend the needle until it is unique, set `replace_all`, split the edit into several unique calls, or ask which occurrence was meant. The `Ambiguous targets` panel is named for what the document offers rather than for what the model does with it.
+Turning `Prompt rules` off drops the uniqueness and padding rules from the system prompt. It does not reliably produce a rejection, and the refusal rate is the same with them on.
+
+A trap names a string the matcher will refuse, which is a property of the document. It is not a property of what the model sends. Three refusals came out of a couple of hundred live runs against Sonnet 5. The model settles the ambiguity before it calls the tool, almost always by extending `old_str` past the repeat, and it will extend across several hundred characters of identical lines rather than send an ambiguous match. What the `Ambiguous targets` panel demonstrates is that resolving, and it is named for what the document offers.
 
 To reach the loop on demand, name an `old_str` the document does not contain. Zero matches is the one failure a model cannot resolve by looking harder.
 
