@@ -162,61 +162,78 @@ export function ToolSetup(props: ToolSetupProps) {
   const builtin = props.editorTool === 'builtin'
 
   return (
-    <div className="flex shrink-0 items-center gap-2 border-b border-slate-200 bg-slate-50/70 px-6 py-1.5">
-      <span className="mr-1 text-[11px] font-medium tracking-wide text-slate-600 uppercase">
-        Tool setup
-      </span>
+    // One row holds the controls and the note only while both fit. Below `lg`
+    // the note takes a row of its own, because sharing with controls that
+    // cannot wrap left it a word wide and six lines tall.
+    <div className="flex shrink-0 flex-col gap-1.5 border-b border-slate-200 bg-slate-50/70 px-6 py-1.5 lg:flex-row lg:items-center lg:gap-2">
+      {/* `shrink-0` settles which side gives way: prose rewraps, a control
+          label does not. Within the group `flex-wrap` lets the switches move to
+          a second line rather than each one shredding its own label. */}
+      <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5">
+        <span className="mr-1 text-[11px] font-medium tracking-wide whitespace-nowrap text-slate-600 uppercase">
+          Tool setup
+        </span>
 
-      <Select
-        value={props.editorTool}
-        onValueChange={(next) => props.onEditorTool(next as EditorTool)}
-        disabled={props.disabled}
-      >
-        <SelectTrigger aria-label="Editor tool" className="py-0.5">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {EDITOR_TOOLS.map((option) => (
-            <SelectItem key={option.id} value={option.id} label={option.label} note={option.note} />
-          ))}
-        </SelectContent>
-      </Select>
+        <Select
+          value={props.editorTool}
+          onValueChange={(next) => props.onEditorTool(next as EditorTool)}
+          disabled={props.disabled}
+        >
+          <SelectTrigger aria-label="Editor tool" className="py-0.5">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {EDITOR_TOOLS.map((option) => (
+              <SelectItem
+                key={option.id}
+                value={option.id}
+                label={option.label}
+                note={option.note}
+              />
+            ))}
+          </SelectContent>
+        </Select>
 
-      {SWITCHES.map((entry) => {
-        const on = props[entry.key]
-        const inert = builtin && entry.unavailable !== undefined
+        {SWITCHES.map((entry) => {
+          const on = props[entry.key]
+          const inert = builtin && entry.unavailable !== undefined
 
-        return (
-          <Tooltip
-            key={entry.key}
-            content={
-              inert ? (
-                entry.unavailable
-              ) : (
-                <TooltipStates states={entry.states} current={on ? 'on' : 'off'} />
-              )
-            }
-            disabled={props.disabled || inert}
-          >
-            <button
-              onClick={() => setters[entry.key](!on)}
-              aria-pressed={inert ? undefined : on}
+          return (
+            <Tooltip
+              key={entry.key}
+              content={
+                inert ? (
+                  entry.unavailable
+                ) : (
+                  <TooltipStates states={entry.states} current={on ? 'on' : 'off'} />
+                )
+              }
               disabled={props.disabled || inert}
-              className={`rounded-md border px-2 py-0.5 text-[11px] font-medium transition disabled:cursor-not-allowed ${
-                inert
-                  ? 'border-dashed border-slate-200 bg-transparent text-slate-300 line-through'
-                  : on
-                    ? 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 disabled:opacity-40'
-                    : 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 disabled:opacity-40'
-              }`}
             >
-              {inert ? entry.label : on ? entry.label : entry.offLabel}
-            </button>
-          </Tooltip>
-        )
-      })}
+              <button
+                onClick={() => setters[entry.key](!on)}
+                aria-pressed={inert ? undefined : on}
+                disabled={props.disabled || inert}
+                className={`rounded-md border px-2 py-0.5 text-[11px] font-medium whitespace-nowrap transition disabled:cursor-not-allowed ${
+                  inert
+                    ? 'border-dashed border-slate-200 bg-transparent text-slate-300 line-through'
+                    : on
+                      ? 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 disabled:opacity-40'
+                      : 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 disabled:opacity-40'
+                }`}
+              >
+                {inert ? entry.label : on ? entry.label : entry.offLabel}
+              </button>
+            </Tooltip>
+          )
+        })}
+      </div>
 
-      <span className="ml-auto text-[11px] text-slate-600">
+      {/* Kept rather than hidden the way the header's document description is.
+          That one had a tooltip on the select beside it carrying the same
+          sentence. This legend has none, and nothing else on screen says what
+          amber means. A row of its own costs one line and reads at any width. */}
+      <span className="text-[11px] text-slate-600 lg:ml-auto">
         {builtin
           ? 'Server-defined means the schema. This app still runs the call and returns the result.'
           : 'Amber means changed from the shipping default.'}
