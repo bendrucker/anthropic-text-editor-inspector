@@ -409,7 +409,7 @@ function TurnSeparator({ turn }: { turn: Turn }) {
       role="row"
       className="sticky top-0 z-10 -mx-3 border-y border-slate-400 bg-slate-200 px-3 py-0.5 text-[11px] leading-relaxed"
     >
-      <Tooltip content={turn.detail} side="top" align="start">
+      <Tooltip content={turnBand(turn)} side="top" align="start">
         <span role="cell" aria-colspan={5} className="flex w-fit items-baseline gap-1.5">
           <span className="shrink-0 font-medium text-slate-700">turn {turn.number}</span>
           <span className="shrink-0 font-medium text-slate-700 tabular-nums">
@@ -418,11 +418,74 @@ function TurnSeparator({ turn }: { turn: Turn }) {
           </span>
           {(turn.changed || turn.closed) && (
             <span className="shrink-0 text-slate-700">
-              · {turn.changed ? 'document changed' : 'no document change'}
+              · {turn.changed ? 'edit applied' : 'no edit applied'}
+            </span>
+          )}
+          {showsPaints(turn) && (
+            <span className="shrink-0 text-slate-700 tabular-nums">
+              · {turn.paints} paint{turn.paints === 1 ? '' : 's'}
             </span>
           )}
         </span>
       </Tooltip>
+    </div>
+  )
+}
+
+/**
+ * A turn that applied nothing and painted anyway says so, because that is the
+ * pairing that read as a bug.
+ *
+ * A turn that applied an edit is not counted here. Its paint rows are the edit
+ * the band already named, so a number beside them would be noise on the common
+ * case to explain the rare one. The withholding matches the verdict's: an open
+ * turn has no settled account of either.
+ */
+function showsPaints(turn: Turn): boolean {
+  return turn.closed && !turn.changed && turn.paints > 0
+}
+
+/**
+ * What the band counted, which is the one thing its own words could not carry.
+ *
+ * The verdict used to read `no document change`. That names the document, so it
+ * was heard as a claim about what was on screen, and the rows underneath are
+ * frames. A frame carrying an earlier turn's edit lands whenever it lands, and
+ * nothing re-sorts the list, so the band and the paint rows inside it stated
+ * opposite things about the same document. Both were true. Neither said which
+ * question it was answering.
+ *
+ * So the verdict names what it actually counts, which is this turn's tool calls.
+ * The paint count beside it answers the other question outright, rather than
+ * leaving a reader to find the rows and doubt the band.
+ */
+function turnBand(turn: Turn): ReactNode {
+  const verdict = turn.changed ? (
+    <>
+      A <code>str_replace</code> call in this turn was applied to the document.
+    </>
+  ) : turn.closed ? (
+    <>
+      No <code>str_replace</code> call in this turn was applied to the document. This counts the
+      turn's tool calls, not what was on screen while it ran.
+      {showsPaints(turn) && (
+        <>
+          {' '}
+          The document still moved: a paint reports a frame, and an earlier turn's edit finishing its
+          commit or a rejected edit closing its hole both paint without anything being applied here.
+        </>
+      )}
+    </>
+  ) : undefined
+
+  // Undefined rather than an empty element, because `Tooltip` reads that as
+  // having nothing to say and leaves the band without a trigger at all.
+  if (turn.detail === undefined && verdict === undefined) return undefined
+
+  return (
+    <div className="space-y-2">
+      {turn.detail !== undefined && <p>{turn.detail}</p>}
+      {verdict !== undefined && <p>{verdict}</p>}
     </div>
   )
 }
@@ -985,12 +1048,18 @@ function atBottom(view: HTMLElement): boolean {
 }
 
 /**
- * Three labels the console reads as structure rather than as text. The run
- * writes them in `lib/agent.ts`, and nothing else in the timeline says where a
- * turn begins, whether the document moved, or whether the run is over.
+ * Four labels the console reads as structure rather than as text. The run
+ * writes them in `lib/agent.ts` and `hooks/use-live-document.ts`, and nothing
+ * else in the timeline says where a turn begins, whether an edit was applied,
+ * whether a frame carried it to the screen, or whether the run is over.
+ *
+ * `EDIT_APPLIED` and `PAINT` are two different questions and neither answers
+ * the other. One is a tool result and the other is a frame, so a turn can carry
+ * either without the other.
  */
 const TURN_HEAD = 'request sent'
-const DOCUMENT_CHANGED = 'tool_result · ok'
+const EDIT_APPLIED = 'tool_result · ok'
+const PAINT = 'paint'
 const RUN_END = 'run complete'
 
 interface Turn {
@@ -1000,8 +1069,23 @@ interface Turn {
   /** Position of that entry in the full timeline, so rows can be placed against it. */
   headIndex: number
   spanMs: number
-  /** Whether an edit was applied. A turn that changed nothing is the run's real cost. */
+  /**
+   * Whether a tool call in this turn applied an edit. A turn that applied
+   * nothing is the run's real cost.
+   *
+   * This is a fact about the turn's tool calls and about nothing else. It is
+   * not whether the document looked different during the turn, which is what
+   * `paints` counts, and the band may not word it as though it were.
+   */
   changed: boolean
+  /**
+   * Frames that painted between this turn's head and the next.
+   *
+   * Paints and tool calls are stamped on one axis by different things, so they
+   * do not have to line up. A block-replaced edit commits after its own turn
+   * has closed, which drops its paint inside a later turn that applied nothing.
+   */
+  paints: number
   /**
    * Whether the turn ended. An open turn reports its span so far and withholds
    * the negative verdict, because the tool result that would settle it arrives
@@ -1047,6 +1131,7 @@ function planTurns(timeline: TimelineEntry[]): Turn[] {
       headIndex: index,
       spanMs: 0,
       changed: false,
+      paints: 0,
       closed: false,
       detail: entry.detail,
     }
@@ -1059,7 +1144,8 @@ function planTurns(timeline: TimelineEntry[]): Turn[] {
         break
       }
       if (later.atMs > 0) endMs = later.atMs
-      if (later.label === DOCUMENT_CHANGED) turn.changed = true
+      if (later.label === EDIT_APPLIED) turn.changed = true
+      if (splitLabel(later.label).name === PAINT) turn.paints += 1
       if (later.label === RUN_END) turn.closed = true
     }
 
