@@ -5,9 +5,14 @@
  * buffer is usually not parseable. This decodes as much as is complete, which is
  * what lets the UI locate the target from `old_str` and then stream `new_str`
  * into it as the characters arrive.
+ *
+ * The built-in text editor tool wraps the same two keys in `command` and `path`,
+ * so the same scan reads both tools. Keys it does not know are stepped over.
  */
 
 export interface PartialEditInput {
+  /** The built-in tool's command, which selects among `view`, `str_replace`, and the rest. */
+  command?: string
   oldStr?: string
   oldStrComplete: boolean
   newStr?: string
@@ -103,6 +108,8 @@ export function scanEditInput(buffer: string): PartialEditInput {
       } else if (key.value === 'new_str') {
         result.newStr = value.value
         result.newStrComplete = value.complete
+      } else if (key.value === 'command' && value.complete) {
+        result.command = value.value
       }
       if (!value.complete) break
       i = value.end

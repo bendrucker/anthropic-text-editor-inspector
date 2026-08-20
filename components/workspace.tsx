@@ -54,6 +54,8 @@ export function Workspace() {
       </header>
 
       <ToolSetup
+        editorTool={doc.editorTool}
+        onEditorTool={doc.setEditorTool}
         guardrails={doc.guardrails}
         onGuardrails={doc.setGuardrails}
         oldStrFirst={doc.oldStrFirst}

@@ -13,13 +13,37 @@ import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
  * the document as a direct call rather than a re-encoded server event.
  */
 
-const EDIT_RULES = `
+/**
+ * Which of the two tools a run declares.
+ *
+ * `custom` is this app's own `str_replace`, whose schema it owns. `builtin` is
+ * Anthropic's text editor tool, whose schema it does not. Running the same
+ * prompt through both is the point: the timeline says what the difference costs.
+ */
+export type EditorTool = 'custom' | 'builtin'
+
+/**
+ * The built-in tool addresses a file by path, and there is no file. The document
+ * is editor state in a browser tab, so it gets one name to be addressed by, and
+ * the prompt says that is all the name is.
+ */
+export const SYNTHETIC_PATH = '/document.md'
+
+/** The model sends the path back with or without its leading slash. Both name the one document. */
+function namesDocument(path: string | undefined): boolean {
+  return typeof path === 'string' && path.replace(/^\.?\//, '') === SYNTHETIC_PATH.slice(1)
+}
+
+/** `replace_all` exists only on the custom schema, so only it can be suggested. */
+function editRules(replaceAll: boolean): string {
+  return `
 Rules for str_replace:
 - old_str must reproduce text from the document exactly, including whitespace and punctuation. Table cells are padded so columns align; reproduce that padding.
-- old_str must appear exactly once. If the text you want is not unique, extend it with surrounding context until it is. Set replace_all only when every occurrence should change.
+- old_str must appear exactly once. If the text you want is not unique, extend it with surrounding context until it is.${replaceAll ? ' Set replace_all only when every occurrence should change.' : ''}
 - Keep old_str as short as it can be while staying unique.
 - Preserve the document's existing voice and formatting conventions.
 `
+}
 
 /**
  * Turning the rules off is a teaching control, not a mistake. Pre-teaching the
@@ -27,11 +51,18 @@ Rules for str_replace:
  * the retry loop. Without them it learns the same constraints from tool results,
  * live and visibly.
  */
-export function buildSystem(guardrails: boolean): string {
+export function buildSystem(guardrails: boolean, editorTool: EditorTool): string {
+  const instruction =
+    editorTool === 'builtin'
+      ? `The document is given below. Make the smallest edit that satisfies the request, using the str_replace command of the text editor tool.
+
+The document is the only file, at ${SYNTHETIC_PATH}. Nothing backs it but this editor, so view and str_replace are the only commands that go anywhere.`
+      : 'The document is given below. Make the smallest edit that satisfies the request, using the str_replace tool.'
+
   return `You edit a Markdown document on behalf of the user.
 
-The document is given below. Make the smallest edit that satisfies the request, using the str_replace tool.
-${guardrails ? EDIT_RULES : ''}
+${instruction}
+${guardrails ? editRules(editorTool === 'custom') : ''}
 Go straight to the edit. Do not restate the document, announce what you are about to do, or summarize what you did beyond one short sentence. If a request is ambiguous or would require data you do not have, say so instead of inventing figures.`
 }
 
@@ -70,6 +101,23 @@ export function buildTool(options: { oldStrFirst: boolean; eager: boolean }): An
       required: ['old_str', 'new_str'],
     },
   }
+}
+
+/**
+ * The same job, declared in one object instead of thirty lines.
+ *
+ * Anthropic owns this schema, which is what the two switches above cost to
+ * reach: `eager_input_streaming` is a user-defined-tool field, so
+ * `BetaToolTextEditor20250728` has no slot for it, and there is no property list
+ * to reorder either. Server-defined means the schema, not the execution. The
+ * call still arrives as a `tool_use` block this app runs and answers.
+ *
+ * `text_editor_20250728` is the version keyed to Claude 4 and later, which every
+ * model in the picker is. Earlier models take `text_editor_20250124`.
+ */
+export const BUILTIN_EDITOR_TOOL: Anthropic.Beta.BetaToolTextEditor20250728 = {
+  type: 'text_editor_20250728',
+  name: 'str_replace_based_edit_tool',
 }
 
 /**
@@ -130,10 +178,12 @@ export interface RunOptions {
   effort?: EffortChoice['id']
   /** Include the uniqueness and padding rules in the system prompt. */
   guardrails?: boolean
-  /** Declare `old_str` before `new_str` in the tool schema. */
+  /** Declare `old_str` before `new_str` in the tool schema. Custom tool only. */
   oldStrFirst?: boolean
-  /** Stream unvalidated tool-input fragments instead of waiting for valid JSON. */
+  /** Stream unvalidated tool-input fragments instead of waiting for valid JSON. Custom tool only. */
   eagerStreaming?: boolean
+  /** Declare this app's `str_replace` or Anthropic's text editor tool. */
+  editorTool?: EditorTool
   document: string
   prompt: string
   /** Earlier turns. Without them the model cannot answer a follow-up or its own question. */
@@ -233,9 +283,13 @@ export async function runEdit(options: RunOptions): Promise<void> {
   const { apiKey, document, prompt, signal, handlers } = options
   const effort = options.effort ?? DEFAULT_EFFORT
   const guardrails = options.guardrails ?? true
+  const editorTool = options.editorTool ?? 'custom'
+  const builtin = editorTool === 'builtin'
   const oldStrFirst = options.oldStrFirst ?? true
   const eagerStreaming = options.eagerStreaming ?? true
-  const tool = buildTool({ oldStrFirst, eager: eagerStreaming })
+  // Neither switch reaches the built-in tool, so a run that declares it records
+  // no setting for them rather than one that did nothing.
+  const tool = builtin ? BUILTIN_EDITOR_TOOL : buildTool({ oldStrFirst, eager: eagerStreaming })
 
   const model = findModel(options.model ?? DEFAULT_MODEL) ?? findModel(DEFAULT_MODEL)!
   // Guard the combinations the API rejects.
@@ -261,8 +315,13 @@ export async function runEdit(options: RunOptions): Promise<void> {
         model.id,
         fastMode ? 'fast' : null,
         model.supportsEffort && effort !== 'auto' ? `effort ${effort}` : null,
-        oldStrFirst ? 'old_str first' : 'new_str first',
-        eagerStreaming ? 'eager streaming' : 'eager streaming off',
+        ...(builtin
+          ? [BUILTIN_EDITOR_TOOL.type, 'schema server-defined, no streaming control']
+          : [
+              'custom str_replace',
+              oldStrFirst ? 'old_str first' : 'new_str first',
+              eagerStreaming ? 'eager streaming' : 'eager streaming off',
+            ]),
         guardrails ? null : 'guardrails off',
       ]
         .filter(Boolean)
@@ -274,7 +333,7 @@ export async function runEdit(options: RunOptions): Promise<void> {
         model: model.id,
         max_tokens: 16000,
         system: [
-          { type: 'text', text: buildSystem(guardrails) },
+          { type: 'text', text: buildSystem(guardrails, editorTool) },
           { type: 'text', text: `<document>\n${workingDocument}\n</document>` },
         ],
         tools: [tool],
@@ -309,7 +368,9 @@ export async function runEdit(options: RunOptions): Promise<void> {
           blockIds.set(event.index, event.content_block.id)
           record({
             label: `content_block_start · tool_use`,
-            detail: `${event.content_block.name}, eager input streaming ${eagerStreaming ? 'on' : 'off'}`,
+            detail: builtin
+              ? `${event.content_block.name}, eager input streaming unavailable on an Anthropic-defined tool`
+              : `${event.content_block.name}, eager input streaming ${eagerStreaming ? 'on' : 'off'}`,
           })
         } else {
           record({ label: `content_block_start · ${event.content_block.type}` })
@@ -341,6 +402,12 @@ export async function runEdit(options: RunOptions): Promise<void> {
       fragments.set(index, count)
 
       record({ label: 'input_json_delta', raw: event.delta.partial_json })
+
+      // The built-in tool multiplexes four commands through one block, and only
+      // str_replace describes an edit. A `view` has nothing to open a card for,
+      // and its fragments still show up in the timeline above.
+      if (builtin && parsed.command !== 'str_replace') continue
+
       handlers.onBuffer({
         toolUseId: id,
         buffer,
@@ -397,9 +464,53 @@ export async function runEdit(options: RunOptions): Promise<void> {
     const results: Anthropic.Beta.BetaToolResultBlockParam[] = []
 
     for (const block of message.content) {
-      if (block.type !== 'tool_use' || block.name !== 'str_replace') continue
+      if (block.type !== 'tool_use' || block.name !== tool.name) continue
 
-      const input = block.input as { old_str?: string; new_str?: string; replace_all?: boolean }
+      const input = block.input as {
+        command?: string
+        path?: string
+        old_str?: string
+        new_str?: string
+        replace_all?: boolean
+      }
+
+      // The built-in tool arrives expecting a filesystem. What it gets is one
+      // document that can be read and replaced into, and errors for the rest.
+      if (builtin) {
+        const refusal = !namesDocument(input.path)
+          ? `No such file: ${input.path}. The only document open is ${SYNTHETIC_PATH}.`
+          : input.command !== 'view' && input.command !== 'str_replace'
+            ? `The ${input.command} command is not implemented here. This document is editor state rather than a file, so only view and str_replace apply to it.`
+            : null
+
+        if (refusal) {
+          record({ label: 'tool_result · is_error', detail: refusal, tone: 'bad' })
+          handlers.onEditRejected({
+            id: block.id,
+            message: refusal,
+            document: workingDocument,
+            oldStr: '',
+            matches: [],
+          })
+          results.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            is_error: true,
+            content: refusal,
+          })
+          continue
+        }
+
+        if (input.command === 'view') {
+          record({
+            label: 'tool_result · view',
+            detail:
+              'Returned the document. The built-in tool reads a file before it edits one, so the first edit can cost a round trip the custom tool never spends.',
+          })
+          results.push({ type: 'tool_result', tool_use_id: block.id, content: workingDocument })
+          continue
+        }
+      }
 
       if (typeof input.old_str !== 'string' || typeof input.new_str !== 'string') {
         record({
@@ -423,7 +534,7 @@ export async function runEdit(options: RunOptions): Promise<void> {
         continue
       }
 
-      const located = locateEdit(workingDocument, input.old_str, input.replace_all)
+      const located = locateEdit(workingDocument, input.old_str, input.replace_all, !builtin)
 
       if (!located.ok) {
         record({

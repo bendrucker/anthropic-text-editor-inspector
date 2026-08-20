@@ -10,16 +10,16 @@ Anthropic ships a text editor tool. Declaring it takes one line, and the model a
 { type: 'text_editor_20250728', name: 'str_replace_based_edit_tool' }
 ```
 
-This app declares its own instead, because the built-in tool cannot stream its input. The SDK types show the difference. In `@anthropic-ai/sdk/resources/beta/messages/messages.d.ts`, the custom-tool interface carries a field the text editor interfaces do not:
+The app can declare it, and does when the tool selector says so. It defaults to its own `str_replace` because the built-in tool cannot ask for its input early. The SDK types show the difference. In `@anthropic-ai/sdk/resources/beta/messages/messages.d.ts`, the custom-tool interface carries a field the text editor interfaces do not:
 
 ```ts
 // BetaTool, the custom-tool shape
 eager_input_streaming?: boolean | null
 ```
 
-`BetaToolTextEditor20250728` has `name`, `type`, `cache_control`, `defer_loading`, `input_examples`, `strict`, and `max_characters`. There is no streaming control on it. Anthropic owns the schema for its own tools, so there is nowhere to ask for input early.
+`BetaToolTextEditor20250728` has `name`, `type`, `cache_control`, `defer_loading`, `input_examples`, `strict`, and `max_characters`. There is no streaming control on it. Anthropic owns the schema for its own tools, so there is nowhere to ask for input early. The tool reference is explicit about the scope: `eager_input_streaming` is available on user-defined tools only.
 
-The rest of this project follows from that. `lib/agent.ts` builds a tool named `str_replace` taking the same two parameters the built-in one takes, to reach the flag.
+The rest of this project follows from that. `lib/agent.ts` builds a tool named `str_replace` taking the same two parameters the built-in one takes, to reach the flag. Selecting the built-in tool sends `BUILTIN_EDITOR_TOOL` instead and runs the same loop, which is how the two get compared on one timeline. Its input carries `command` and `path` around the same `old_str` and `new_str`, so the same buffer scanner reads both. The document has no file behind it, so it is addressed as `/document.md`, `view` is answered with the document, and `create` and `insert` come back as errors.
 
 ## Eager input streaming
 

@@ -45,15 +45,21 @@ sequenceDiagram
 
 ## Controls
 
+- **Tool:** Which of the two tools the run declares. See [Editor Tool](#editor-tool).
 - **Prompt rules:** On, the system prompt pre-teaches uniqueness and table padding. Off, the model learns them from tool results and the retry loop runs. Turn it off before trying the traps.
-- **old_str first:** Schema key order. Flipped, the target stays unknown until the replacement fully streams. Order-follows-schema is observed model behavior rather than a spec guarantee.
-- **Eager streaming:** Off, tool input lands in validated bursts and nothing renders early.
+- **old_str first:** Schema key order. Flipped, the target stays unknown until the replacement fully streams. Order-follows-schema is observed model behavior rather than a spec guarantee. Custom tool only.
+- **Eager streaming:** Off, tool input lands in validated bursts and nothing renders early. Custom tool only.
 
 Model, effort, and fast mode are controllable from the header.
 
 ## Editor Tool
 
-The built-in `text_editor_20250728` is a native tool, but does not stream outputs. A user-defined tool can set `eager_input_streaming: true`, so this app declares its own `str_replace`.
+The tool selector in the tool setup row runs the same prompt through either tool, so the difference is something you watch rather than something this README asserts.
+
+- **Custom `str_replace`:** this app writes the schema, which is what buys it `eager_input_streaming` and control over key order. Both are user-defined-tool properties.
+- **Built-in text editor:** `text_editor_20250728`, whose schema Anthropic writes. Neither switch has anywhere to attach, so both go grey. Input still arrives as `input_json_delta`, buffered and validated per parameter instead of streamed raw, and the run inspector shows how that changes fragment count and time to first edit.
+
+Server-defined describes the schema, not where the tool runs. The built-in tool comes back as a `tool_use` block this app executes and answers, exactly like the custom one. It addresses a file by path, and there is no file, so the open document stands in at `/document.md` and its other commands are refused as unimplemented. A `view` is answered with the document.
 
 Match semantics follow Claude Code's `Edit` tool. Matches must be exact and unique or they are refused. Error messages double as retry prompts.
 

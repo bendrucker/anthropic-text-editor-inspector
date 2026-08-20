@@ -9,7 +9,13 @@ import { resolveTarget, findTextRanges, type EditTarget } from '@/lib/positions'
 import type { Match } from '@/lib/str-replace'
 import { streamHighlightKey, type HighlightRange } from '@/lib/stream-highlight'
 import { DEFAULT_MODEL, findModel, DEFAULT_EFFORT, type EffortChoice } from '@/lib/models'
-import { runEdit, describeFailure, type EditTiming, type ConversationTurn } from '@/lib/agent'
+import {
+  runEdit,
+  describeFailure,
+  type EditTiming,
+  type ConversationTurn,
+  type EditorTool,
+} from '@/lib/agent'
 import type { BufferState, TimelineEntry } from '@/lib/timeline'
 import { instrument, dispatch, type RecordedCall } from '@/lib/recording'
 import type { AgentHandlers } from '@/lib/agent'
@@ -133,6 +139,7 @@ export function useLiveDocument() {
   const [guardrails, setGuardrails] = useState(true)
   const [oldStrFirst, setOldStrFirst] = useState(true)
   const [eagerStreaming, setEagerStreaming] = useState(true)
+  const [editorTool, setEditorTool] = useState<EditorTool>('custom')
   const [runs, setRuns] = useState<Run[]>([])
   const [apiKey, setApiKeyState] = useState<string | null>(null)
   const [timeline, setTimeline] = useState<TimelineEntry[]>([])
@@ -569,6 +576,7 @@ export function useLiveDocument() {
           guardrails,
           oldStrFirst,
           eagerStreaming,
+          editorTool,
           document: snapshot,
           prompt: framed,
           history: history.current,
@@ -627,6 +635,7 @@ export function useLiveDocument() {
       guardrails,
       oldStrFirst,
       eagerStreaming,
+      editorTool,
     ],
   )
   /**
@@ -742,6 +751,8 @@ export function useLiveDocument() {
     setOldStrFirst,
     eagerStreaming,
     setEagerStreaming,
+    editorTool,
+    setEditorTool,
     apiKey,
     setApiKey,
     send,

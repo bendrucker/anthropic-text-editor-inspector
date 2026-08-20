@@ -47,7 +47,16 @@ function describeNearMiss(source: string, oldStr: string): string {
   return ''
 }
 
-export function locateEdit(source: string, oldStr: string, replaceAll = false): MatchOutcome {
+/**
+ * `offerReplaceAll` is false for the built-in text editor tool, whose schema has
+ * no such parameter. Naming a fix the model cannot reach wastes the retry.
+ */
+export function locateEdit(
+  source: string,
+  oldStr: string,
+  replaceAll = false,
+  offerReplaceAll = true,
+): MatchOutcome {
   if (!oldStr) {
     return {
       ok: false,
@@ -75,8 +84,8 @@ export function locateEdit(source: string, oldStr: string, replaceAll = false): 
       matches,
       message:
         `old_str matched ${matches.length} times and must identify exactly one location.` +
-        ' Extend it with surrounding text until it is unique, or set replace_all to true' +
-        ' to change every occurrence.',
+        ' Extend it with surrounding text until it is unique' +
+        (offerReplaceAll ? ', or set replace_all to true to change every occurrence.' : '.'),
     }
   }
 
