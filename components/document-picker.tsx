@@ -1,4 +1,5 @@
 import { SAMPLES, type LibraryDocument } from '@/lib/library'
+import { Tooltip } from './ui/tooltip'
 
 interface DocumentPickerProps {
   document: LibraryDocument
@@ -21,41 +22,62 @@ export function DocumentPicker({
 }: DocumentPickerProps) {
   return (
     <div className="flex items-center gap-2">
-      <select
-        value={document.id}
+      <Tooltip
         disabled={disabled}
-        onChange={(event) => onSelect(event.target.value)}
-        aria-label="Document"
-        title={document.description}
-        className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-300 focus:outline-none disabled:opacity-50"
+        content={
+          <>
+            {document.description} Choosing another document clears the timeline, the buffer, and
+            the replay, since all three describe the document that was open when they were recorded.
+          </>
+        }
       >
-        <optgroup label="Samples">
-          {SAMPLES.map((option) => (
-            <option key={option.id} value={option.id} title={option.description}>
-              {option.title}
-            </option>
-          ))}
-        </optgroup>
-
-        {generated.length > 0 && (
-          <optgroup label="Generated">
-            {generated.map((option) => (
-              <option key={option.id} value={option.id}>
+        <select
+          value={document.id}
+          disabled={disabled}
+          onChange={(event) => onSelect(event.target.value)}
+          aria-label="Document"
+          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-300 focus:outline-none disabled:opacity-50"
+        >
+          <optgroup label="Samples">
+            {/* A native option list is drawn by the OS, so this one description
+                stays a browser tooltip. */}
+            {SAMPLES.map((option) => (
+              <option key={option.id} value={option.id} title={option.description}>
                 {option.title}
               </option>
             ))}
           </optgroup>
-        )}
-      </select>
 
-      <button
-        onClick={onGenerate}
+          {generated.length > 0 && (
+            <optgroup label="Generated">
+              {generated.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.title}
+                </option>
+              ))}
+            </optgroup>
+          )}
+        </select>
+      </Tooltip>
+
+      <Tooltip
         disabled={disabled}
-        title="Builds a document from a random seed, with repeated strings planted so the traps below are real."
-        className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-500 transition hover:border-slate-300 hover:text-slate-700 disabled:opacity-40"
+        content={
+          <>
+            Builds a fresh document from a random seed, planting strings that repeat so the traps
+            offered alongside it are genuinely ambiguous rather than hand-written against one
+            sample.
+          </>
+        }
       >
-        Generate
-      </button>
+        <button
+          onClick={onGenerate}
+          disabled={disabled}
+          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-500 transition hover:border-slate-300 hover:text-slate-700 disabled:opacity-40"
+        >
+          Generate
+        </button>
+      </Tooltip>
     </div>
   )
 }
