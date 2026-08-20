@@ -343,6 +343,14 @@ function RunRow({
   )
 }
 
+/**
+ * The panel is 340px wide in a viewport-clamped column, so it draws the newest
+ * few runs and no more. The Runs tab counts every run kept, which is the larger
+ * number once a demo passes this many, so the heading below names how many of
+ * them reached the list rather than leaving the tab's count over a shorter one.
+ */
+const VISIBLE_RUNS = 5
+
 /** Recent runs, so a demo can compare configurations rather than assert a number. */
 export function RunHistory({ runs }: { runs: Run[] }) {
   const [opened, setOpened] = useState<Run | null>(null)
@@ -357,7 +365,7 @@ export function RunHistory({ runs }: { runs: Run[] }) {
     )
   }
 
-  const shown = runs.slice(0, 5)
+  const shown = runs.slice(0, VISIBLE_RUNS)
   // One denominator for every row. A bar normalised to its own total draws a two
   // second run and a nine second run the same width, which is the opposite of
   // what a list of runs is for.
@@ -365,7 +373,15 @@ export function RunHistory({ runs }: { runs: Run[] }) {
 
   return (
     <div className="min-h-0 overflow-y-auto px-4 py-3">
-      <p className="text-[11px] font-medium tracking-wide text-slate-500 uppercase">Runs</p>
+      <p className="text-[11px] font-medium tracking-wide text-slate-500 uppercase">
+        Runs
+        {shown.length < runs.length && (
+          <span className="normal-case">
+            {' '}
+            · newest {shown.length} of {runs.length}
+          </span>
+        )}
+      </p>
       <p className="mb-2 text-[10px] text-slate-500">
         First-byte latency varies by seconds between runs. Compare the render span, not the wait.
       </p>
