@@ -7,7 +7,23 @@ interface ApiKeyControlProps {
   onApiKey: (key: string | null) => void
 }
 
-export function ApiKeyControl({ apiKey, onApiKey }: ApiKeyControlProps) {
+export function ApiKeyControl(props: ApiKeyControlProps) {
+  return keyStore.editable ? <KeyPopover {...props} /> : <EnvironmentKeyBadge />
+}
+
+/** Nothing to enter or clear, so the badge only says where the key came from. */
+function EnvironmentKeyBadge() {
+  return (
+    <span
+      title={keyStore.description}
+      className="rounded-md border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-500"
+    >
+      Key from dev server
+    </span>
+  )
+}
+
+function KeyPopover({ apiKey, onApiKey }: ApiKeyControlProps) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState('')
 
