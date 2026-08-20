@@ -11,6 +11,7 @@ import {
 import { briefTraps, type Trap } from '@/lib/traps'
 import { ExactText } from './ui/exact-text'
 import { PulseDot } from './ui/activity'
+import { Tooltip } from './ui/tooltip'
 
 interface ChatPaneProps {
   /** Edits that read naturally against the open document. */
@@ -270,13 +271,14 @@ function EditCard({ edit, onRevert }: { edit: EditRecord; onRevert: (edit: EditR
         <span className="flex shrink-0 items-center gap-2">
           {edit.applyPath && <ApplyPathBadge path={edit.applyPath} />}
           {edit.status === 'applied' && !edit.reverted && (
-            <button
-              onClick={() => onRevert(edit)}
-              title="Rewinds the document to just before this edit. Anything edited after it goes too."
-              className="text-slate-500 underline-offset-2 transition hover:text-slate-700 hover:underline"
-            >
-              Undo
-            </button>
+            <Tooltip content="Rewinds the document to just before this edit. Anything edited after it goes too.">
+              <button
+                onClick={() => onRevert(edit)}
+                className="text-slate-500 underline-offset-2 transition hover:text-slate-700 hover:underline focus-ring"
+              >
+                Undo
+              </button>
+            </Tooltip>
           )}
         </span>
       </div>
