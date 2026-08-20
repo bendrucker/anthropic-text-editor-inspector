@@ -121,17 +121,23 @@ export const BUILTIN_EDITOR_TOOL: Anthropic.Beta.BetaToolTextEditor20250728 = {
   name: 'str_replace_based_edit_tool',
 }
 
-/**
- * Where the wait goes, measured from the request leaving the browser.
- *
- * Each lever is different: `firstByteMs` is network and model start-up,
- * the gap to `toolStartMs` is preamble the model wrote first, and the gap to
- * `targetMs` is `old_str` streaming, which is bounded by how much context the
- * model needed to make the match unique.
- */
 /** One turn of the conversation, as the API sees it. */
 export type ConversationTurn = Anthropic.Beta.BetaMessageParam
 
+/**
+ * Where the wait goes, measured from the first request leaving the browser.
+ *
+ * Four readings off one clock, in order, so the gaps between them are the wait
+ * split into spans that sum back to it: `retriesMs` is every turn before the one
+ * that produced this edit, then network and model start-up up to `firstByteMs`,
+ * then preamble the model wrote before it called the tool up to `toolStartMs`,
+ * then `old_str` streaming up to `targetMs`, which is bounded by how much
+ * context the model needed to make the match unique.
+ *
+ * Every reading describes the same turn, which is what makes the last three
+ * subtract to spans a reader can act on. A run-wide reading among per-turn ones
+ * charges the whole retry to whichever gap straddles the turn boundary.
+ */
 export interface EditTiming {
   firstByteMs: number
   toolStartMs: number
@@ -142,6 +148,10 @@ export interface EditTiming {
    * Every clock here is measured from the run, not from the turn, so on a retry
    * `firstByteMs` covers the turns before this one as well. Subtracting
    * `retriesMs` is what separates a round trip from a second attempt.
+   *
+   * It is also the whole cost of those earlier turns, since the run had done
+   * nothing else by then, so the breakdown can name the retry as its own span
+   * instead of hiding it inside the connection.
    */
   retriesMs?: number
   turn?: number
@@ -412,7 +422,6 @@ export async function runEdit(options: RunOptions): Promise<void> {
   let sequence = 0
   const record = (entry: Omit<TimelineEntry, 'id' | 'atMs' | 'source'>) =>
     handlers.onEvent({ ...entry, id: `wire-${sequence++}`, atMs: since() })
-  let firstEditAt: number | null = null
   let workingDocument = document
 
   const history: ConversationTurn[] = [...(options.history ?? []), { role: 'user', content: prompt }]
@@ -535,8 +544,10 @@ export async function runEdit(options: RunOptions): Promise<void> {
       // entry reads the scan rather than assuming which shape this call took.
       if (parsed.oldStrComplete && parsed.oldStr && !announced.has(index)) {
         announced.add(index)
-        firstEditAt ??= performance.now()
-        const targetMs = Math.round(firstEditAt - startedAt)
+        // This call's own target, not the run's first. A rejected attempt also
+        // closes an `old_str`, and the summary reads the timing of whichever
+        // edit landed, so a shared reading would describe the wrong turn.
+        const targetMs = since()
         record({
           label: 'old_str closed',
           detail: parsed.newStrComplete
@@ -548,9 +559,7 @@ export async function runEdit(options: RunOptions): Promise<void> {
           id,
           oldStr: parsed.oldStr,
           replaceAll: parsed.replaceAll ?? false,
-          // `targetMs` is the run's first target, kept for the timing summary.
-          // A second edit resolves its own target later and says so.
-          elapsedMs: since(),
+          elapsedMs: targetMs,
           timing: {
             firstByteMs: firstByteMs ?? targetMs,
             toolStartMs: toolStartMs ?? targetMs,
