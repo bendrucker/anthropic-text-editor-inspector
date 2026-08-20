@@ -41,6 +41,7 @@ sequenceDiagram
 - **Run inspector:** interleaves wire events and this app's decisions in one timeline, as a console with fixed columns, a text filter that marks its matches, and chips that hide a stream or an event type. Order is always arrival order, since the interleaving is what there is to read.
 - **Input buffer:** shows tool input as one growing string, with `old_str` and `new_str` extracted live and labeled *not started*, *streaming*, or *closed*.
 - **Matcher:** runs the real matching code against the live document with no model or API key.
+- **Paint timing:** stamps when a change reached the screen rather than when the app dispatched it, and closes the run with how much of its wall clock changed nothing.
 - **Replay:** re-runs a finished edit at quarter speed.
 
 ## Controls
@@ -57,7 +58,9 @@ Model, effort, and fast mode are controllable from the header.
 The tool selector in the tool setup row runs the same prompt through either tool, so the difference is something you watch rather than something this README asserts.
 
 - **Custom `str_replace`:** this app writes the schema, which is what buys it `eager_input_streaming` and control over key order. Both are user-defined-tool properties.
-- **Built-in text editor:** `text_editor_20250728`, whose schema Anthropic writes. Neither switch has anywhere to attach, so both go grey. Input still arrives as `input_json_delta`, buffered and validated per parameter instead of streamed raw, and the run inspector shows how that changes fragment count and time to first edit.
+- **Built-in text editor:** `text_editor_20250728`, whose schema Anthropic writes. Neither switch has anywhere to attach, so both go grey. Input still arrives as `input_json_delta`, buffered and validated per parameter instead of streamed raw, and the run inspector shows how that changes fragment count and whether the replacement renders progressively at all.
+
+Neither tool reliably reaches the first edit sooner. First-byte latency varies by seconds between runs and swamps the difference, and what streaming saves is bounded by how long `old_str` takes to generate, so a short target shows nothing at all. Pick a long one and watch whether the replacement lands in one frame or over several hundred milliseconds.
 
 Server-defined describes the schema, not where the tool runs. The built-in tool comes back as a `tool_use` block this app executes and answers, exactly like the custom one. It addresses a file by path, and there is no file, so the open document stands in at `/document.md` and its other commands are refused as unimplemented. A `view` is answered with the document.
 
