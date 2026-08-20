@@ -6,6 +6,10 @@
 
 ![The inspector after a finished run: the edited document, the event console grouped by turn, and the run history](docs/screenshot.png)
 
+![One edit landing: the old paragraph collapses to the characters received so far, and the replacement fills in as the model streams it](docs/live-edit.gif)
+
+That edit replays at quarter speed. [A full run](docs/screencast.mp4) shows the prompt, the live stream, and the console that recorded it.
+
 ## Getting Started
 
 This application is bring-your-own-key (BYOK). You must first create an [API key](https://platform.claude.com/dashboard) from your Claude organization. This key is stored on your device and only sent to Anthropic's servers.
