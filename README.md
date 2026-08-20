@@ -4,7 +4,8 @@
 
 **[Open Web App](https://bendrucker.github.io/anthropic-text-editor-inspector/)**
 
-<img width="1862" height="1212" alt="Screenshot 2026-08-19 at 20 29 55" src="https://github.com/user-attachments/assets/ffac79d9-46bb-4f1a-9707-919d1c41a14e" />
+<img width="1861" height="1211" alt="Screenshot 2026-08-19 at 20 31 13" src="https://github.com/user-attachments/assets/a29f5eef-6d71-4ef7-87ec-1a8427aa5f49" />
+
 
 
 ## Getting Started
