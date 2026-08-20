@@ -48,7 +48,11 @@ printf '\n// probe-%s\n' "$(git rev-parse --short HEAD)" >> lib/paint.ts
 curl -s http://localhost:<port>/lib/paint.ts | grep -c 'probe-'
 ```
 
-Plant one rather than grepping a value already in the source. A distinctive-looking string can be identical in the checkout next door, so it returns a match that proves nothing. `git checkout lib/paint.ts` drops the token when the measuring is done.
+Plant one rather than grepping a value already in the source. A distinctive-looking string can be identical in the checkout next door, so it returns a match that proves nothing. Clean up by deleting just the planted line, not `git checkout lib/paint.ts`: the probed file is often the file you're already editing, and `git checkout` silently discards those edits along with the token.
+
+```
+sed -i '' '/probe-/d' lib/paint.ts
+```
 
 A discriminator on a *rendered* value can pass while the source belongs to another checkout. Grid tracks measured at 509.64 and then 491 across a viewport change read as responsive, and neither number came from the build under test. Served source cannot move like that.
 
@@ -78,6 +82,8 @@ export AGENT_BROWSER_SESSION="$(cat /abs/path/to/tmp/browser-session)"
 ```
 
 Before trusting any snapshot, run `agent-browser get url` and confirm the port is yours.
+
+Close only your own session: `agent-browser close --session <id>`. `agent-browser close --all` closes every agent's session, including ones still working.
 
 ## Measuring rendered color
 
