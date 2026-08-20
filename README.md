@@ -57,6 +57,14 @@ Match semantics follow Claude Code's `Edit` tool. Matches must be exact and uniq
 
 Organizations with [zero data retention](https://code.claude.com/docs/en/zero-data-retention) enabled cannot call Anthropic APIs directly from the browser. You must use a native build or clone and `bun run dev`.
 
+## Stack
+
+- **[React](https://react.dev)**
+- **[Vite](https://vite.dev):** builds the app, and its dev server forwards `/anthropic` for a local run.
+- **[Tiptap](https://tiptap.dev):** the document is a Tiptap editor, and its Markdown serializer decides the exact text `str_replace` matches against.
+- **[Anthropic TypeScript SDK](https://github.com/anthropics/anthropic-sdk-typescript):** streams the message and exposes the raw events the run inspector renders.
+- **[Tauri](https://tauri.app):** the desktop build issues requests from Rust, so the restriction above does not apply, and it stores the key in the system keychain.
+
 ## Building Locally
 
 ```bash
