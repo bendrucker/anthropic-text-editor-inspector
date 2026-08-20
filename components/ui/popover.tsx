@@ -45,7 +45,7 @@ export function PopoverCheck({
         className="size-3 shrink-0 accent-slate-500"
       />
       <span className="min-w-0 flex-1 truncate">{children}</span>
-      {count !== undefined && <span className="shrink-0 tabular-nums text-slate-400">{count}</span>}
+      {count !== undefined && <span className="shrink-0 tabular-nums text-slate-600">{count}</span>}
     </label>
   )
 }

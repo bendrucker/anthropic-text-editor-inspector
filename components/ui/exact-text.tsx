@@ -21,7 +21,7 @@ export function ExactText({
     >
       {text.split(/( {2,}|\n|\t)/).map((part, index) =>
         /^( {2,}|\n|\t)$/.test(part) ? (
-          <span key={index} className="text-slate-400">
+          <span key={index} className="text-slate-600">
             {part.replace(/ /g, '·').replace(/\t/g, '→').replace(/\n/g, '¶\n')}
           </span>
         ) : (
