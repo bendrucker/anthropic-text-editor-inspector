@@ -67,7 +67,7 @@ Server-defined describes the schema, not where the tool runs. The built-in tool 
 
 Match semantics follow Claude Code's `Edit` tool. Matches must be exact and unique or they are refused. Error messages double as retry prompts.
 
-The **Ambiguous targets** prompts each name a string this document repeats, so the bare needle is one the matcher refuses. The model rarely sends it bare: 217 attempts produced 3 rejections, none of them the ambiguous match these prompts were built to provoke. It resolves the repeat before calling the tool instead, by extending `old_str` past it, setting `replace_all`, splitting into several unique edits, or asking which occurrence was meant. Which way out it took is what the console shows.
+The **Ambiguous targets** prompts each name a string this document repeats, so the bare needle is one the matcher refuses. The model rarely sends it bare: 144 runs on these prompts, half with prompt rules on and half off, produced 3 rejections, none of them the ambiguous match these prompts were built to provoke. It resolves the repeat before calling the tool instead, by extending `old_str` past it, setting `replace_all`, splitting into several unique edits, or asking which occurrence was meant. Which way out it took is what the console shows.
 
 ## CORS
 

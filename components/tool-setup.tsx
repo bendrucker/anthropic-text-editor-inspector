@@ -67,10 +67,10 @@ const SWITCHES: Switch[] = [
         name: 'unstated',
         body: (
           <>
-            Nothing states the constraints, so the model is working from its own training. Measured
-            across 144 runs on the ambiguity traps, that changes the rejection rate by nothing worth
-            reporting: it satisfies both constraints either way. The switch shows how little the
-            prompt is carrying, not a retry loop it turns on.
+            Nothing states the constraints, so the model is working from its own training. Across
+            144 runs on the Ambiguous targets prompts, 72 with the rules stated and 72 without, it
+            satisfied both constraints either way. The switch shows how little the prompt is
+            carrying, not a retry loop it turns on.
           </>
         ),
       },

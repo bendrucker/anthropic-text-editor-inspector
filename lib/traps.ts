@@ -7,14 +7,15 @@
  *
  * It is not a property of what the model sends. An earlier version of this
  * comment said the first `old_str` the model tries matches several places and
- * gets refused, and 214 live runs against Sonnet 5 put that at 3 refusals. The
- * rate was no different with the prompt rules on than off. The model resolves
- * the ambiguity before it calls the tool, almost always by extending `old_str`
- * past the repeat, and it will extend across several hundred characters of
- * identical lines rather than send an ambiguous match. So the trap names a
- * string the matcher will refuse, and what it demonstrates is the resolving,
- * not a refusal. `briefTraps` is where that distinction is said out loud, next
- * to the code that establishes it.
+ * gets refused, and 214 live runs against Sonnet 5 put that at 3 refusals. Those
+ * 214 span the shipped prompts and two harder sets built for the same test. All
+ * three refusals came from the 144 runs on the shipped prompts, at the same rate
+ * with the prompt rules on as off. The model resolves the ambiguity before it
+ * calls the tool, almost always by extending `old_str` past the repeat, and it
+ * will extend across several hundred characters of identical lines rather than
+ * send an ambiguous match. So the trap names a string the matcher will refuse,
+ * and what it demonstrates is the resolving, not a refusal. `briefTraps` is
+ * where that distinction is said out loud, next to the code that establishes it.
  *
  * Hand-written traps only stay true for the document they were written against,
  * which rules them out for a library and for generated documents. These are
