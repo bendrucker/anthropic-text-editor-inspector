@@ -17,21 +17,51 @@ import { keyStore } from '@/lib/api-key'
 
 export type ApplyPath = EditTarget['kind']
 
-export interface ChatMessage {
-  role: 'user' | 'assistant'
-  text: string
-}
+/**
+ * How far a tool call has got.
+ *
+ * `buffering` and `streaming` are separated because the two waits are not the
+ * same. While buffering, the fragments arriving say nothing yet: `old_str` is
+ * still growing and no target can be located from a prefix. Once `old_str`
+ * closes the target is known and the app has already acted on it, which is the
+ * moment the apply path becomes visible.
+ */
+export type EditStatus = 'buffering' | 'streaming' | 'applied' | 'rejected' | 'incomplete'
 
 export interface EditRecord {
   id: string
+  /** What the buffer scanner has read so far, so a prefix is a real prefix. */
   oldStr: string
+  oldStrComplete: boolean
   newStr: string
-  status: 'streaming' | 'applied' | 'rejected'
+  newStrComplete: boolean
+  status: EditStatus
   /** Which apply path ran. A table edit re-pads its column, so it cannot stream. */
   applyPath?: ApplyPath
   message?: string
+  /** Set by an undo. The card stays in place, since the turn still happened. */
+  reverted?: boolean
   /** Document snapshot from immediately before this edit, for one-click revert. */
   before: string
+}
+
+/**
+ * The conversation, in the order it arrived.
+ *
+ * A tool call is an item of its own rather than a list beside the messages,
+ * because that is where it happened: the API delivers a turn as ordered content
+ * blocks, and text before an edit and text after it are separate blocks with the
+ * call between them. Rendering messages and edits as two lists loses which
+ * request caused which edit as soon as a second turn starts.
+ */
+export type ConversationItem =
+  | { kind: 'prompt'; id: string; text: string }
+  | { kind: 'reply'; id: string; text: string }
+  | { kind: 'edit'; id: string; edit: EditRecord }
+
+/** True once nothing more will arrive for this edit. */
+export function isSettled(edit: EditRecord): boolean {
+  return edit.status !== 'buffering' && edit.status !== 'streaming'
 }
 
 interface StreamState {
@@ -83,8 +113,7 @@ export function useLiveDocument() {
 
   const [document, setDocument] = useState<LibraryDocument>(DEFAULT_DOCUMENT)
   const [generated, setGenerated] = useState<LibraryDocument[]>([])
-  const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [edits, setEdits] = useState<EditRecord[]>([])
+  const [conversation, setConversation] = useState<ConversationItem[]>([])
   const [running, setRunning] = useState(false)
   const [timeToFirstEdit, setTimeToFirstEdit] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -100,8 +129,14 @@ export function useLiveDocument() {
   const [buffer, setBuffer] = useState<BufferState | null>(null)
   const [replaying, setReplaying] = useState(false)
   const [recorded, setRecorded] = useState(false)
-  const conversation = useRef<ConversationTurn[]>([])
-  const recording = useRef<{ calls: RecordedCall[]; handlers: AgentHandlers; snapshot: string } | null>(null)
+  const history = useRef<ConversationTurn[]>([])
+  const recording = useRef<{
+    calls: RecordedCall[]
+    handlers: AgentHandlers
+    snapshot: string
+    /** Where the run started, so a replay can retell it rather than repeat it. */
+    promptId: string
+  } | null>(null)
   const replayTimers = useRef<number[]>([])
   const abortRef = useRef<AbortController | null>(null)
 
@@ -178,6 +213,19 @@ export function useLiveDocument() {
       editor.commands.scrollIntoView()
     }
   }, [highlight])
+
+  const itemSequence = useRef(0)
+  const nextItemId = useCallback(() => `item-${itemSequence.current++}`, [])
+
+  const changeEdit = useCallback((id: string, change: Partial<EditRecord>) => {
+    setConversation((prior) =>
+      prior.map((item) =>
+        item.kind === 'edit' && item.edit.id === id
+          ? { ...item, edit: { ...item.edit, ...change } }
+          : item,
+      ),
+    )
+  }, [])
 
   /** App decisions, interleaved with wire events so the mapping between them reads. */
   const appSequence = useRef(0)
@@ -277,7 +325,12 @@ export function useLiveDocument() {
       setReplaying(true)
       setTimeline([])
       setBuffer(null)
-      setEdits([])
+      // Rewind the conversation to the prompt this run answered. Replaying into
+      // the replies it already produced would append the text a second time.
+      setConversation((prior) => {
+        const at = prior.findIndex((item) => item.id === take.promptId)
+        return at === -1 ? prior : prior.slice(0, at + 1)
+      })
       streams.current.clear()
       editor.commands.setContent(parse(take.snapshot), { emitUpdate: false })
       editor.setEditable(false)
@@ -315,6 +368,8 @@ export function useLiveDocument() {
         ? `Within this exact passage of the document:\n\n${selection}\n\n${prompt}`
         : prompt
 
+      const promptId = nextItemId()
+
       cancelReplay()
       setError(null)
       setTimeToFirstEdit(null)
@@ -322,7 +377,7 @@ export function useLiveDocument() {
       setBuffer(null)
       setRecorded(false)
       setRunning(true)
-      setMessages((prior) => [...prior, { role: 'user', text: prompt }, { role: 'assistant', text: '' }])
+      setConversation((prior) => [...prior, { kind: 'prompt', id: promptId, text: prompt }])
       editor.setEditable(false)
 
       const controller = new AbortController()
@@ -338,18 +393,51 @@ export function useLiveDocument() {
           setTimeline((prior) => [...prior, { ...entry, source: 'wire' }])
         },
 
+        /**
+         * The card appears here rather than at `onEditStart`, which is the
+         * point of it. Between the tool block opening and `old_str` closing the
+         * app knows a call is under way and knows how much of it has arrived,
+         * and that stretch used to show nothing at all.
+         */
         onBuffer(state) {
           setBuffer(state)
+          const scanned = {
+            oldStr: state.oldStr ?? '',
+            oldStrComplete: state.oldStrComplete,
+            newStr: state.newStr ?? '',
+            newStrComplete: state.newStrComplete,
+          }
+
+          setConversation((prior) => {
+            const known = prior.some((item) => item.kind === 'edit' && item.edit.id === state.toolUseId)
+            if (known) {
+              return prior.map((item) =>
+                item.kind === 'edit' && item.edit.id === state.toolUseId
+                  ? { ...item, edit: { ...item.edit, ...scanned } }
+                  : item,
+              )
+            }
+
+            return [
+              ...prior,
+              {
+                kind: 'edit',
+                id: state.toolUseId,
+                edit: { id: state.toolUseId, status: 'buffering', before: snapshot, ...scanned },
+              },
+            ]
+          })
         },
 
         onText(text) {
-          setMessages((prior) => {
-            const next = [...prior]
-            next[next.length - 1] = {
-              role: 'assistant',
-              text: next[next.length - 1].text + text,
+          setConversation((prior) => {
+            const last = prior[prior.length - 1]
+            // A tool call between two text blocks starts a new reply, because
+            // that is how the turn arrived.
+            if (last?.kind !== 'reply') {
+              return [...prior, { kind: 'reply', id: nextItemId(), text }]
             }
-            return next
+            return [...prior.slice(0, -1), { ...last, text: last.text + text }]
           })
         },
 
@@ -368,34 +456,27 @@ export function useLiveDocument() {
             tone: applyPath ? 'good' : 'bad',
           })
 
-          setEdits((prior) => [
-            ...prior,
-            {
-              id: event.id,
-              oldStr: event.oldStr,
-              newStr: '',
-              status: 'streaming',
-              applyPath,
-              before: snapshot,
-            },
-          ])
+          changeEdit(event.id, {
+            status: 'streaming',
+            oldStr: event.oldStr,
+            oldStrComplete: true,
+            applyPath,
+          })
         },
 
+        // The card reads `new_str` off the buffer, which carries the same
+        // characters this chunk does. Only the document needs the chunk.
         onEditDelta(event) {
-          setEdits((prior) =>
-            prior.map((edit) =>
-              edit.id === event.id ? { ...edit, newStr: edit.newStr + event.chunk } : edit,
-            ),
-          )
           appendChunk(event.id, event.chunk)
         },
 
         onEditCommit(event) {
-          setEdits((prior) =>
-            prior.map((edit) =>
-              edit.id === event.id ? { ...edit, status: 'applied', newStr: event.newStr } : edit,
-            ),
-          )
+          changeEdit(event.id, {
+            status: 'applied',
+            oldStr: event.oldStr,
+            newStr: event.newStr,
+            newStrComplete: true,
+          })
         },
 
         onEditRejected(event) {
@@ -411,11 +492,13 @@ export function useLiveDocument() {
                 : 'The hole opened for this edit is closed again.',
             tone: 'bad',
           })
-          setEdits((prior) =>
-            prior.map((edit) =>
-              edit.id === event.id ? { ...edit, status: 'rejected', message: event.message } : edit,
-            ),
-          )
+          changeEdit(event.id, {
+            status: 'rejected',
+            message: event.message,
+            // Empty when the input never became valid JSON, where the buffer
+            // the scanner already holds is the only account of what arrived.
+            ...(event.oldStr ? { oldStr: event.oldStr } : {}),
+          })
           // The hole opened for a rejected edit has to be closed again.
           editor.commands.setContent(parse(event.document), { emitUpdate: false })
           streams.current.delete(event.id)
@@ -455,7 +538,7 @@ export function useLiveDocument() {
           eagerStreaming,
           document: snapshot,
           prompt: framed,
-          history: conversation.current,
+          history: history.current,
           signal: controller.signal,
           handlers: instrument(
             handlers,
@@ -468,17 +551,28 @@ export function useLiveDocument() {
           setError(describeFailure(cause))
         }
       } finally {
-        if (turnHistory) conversation.current = turnHistory
-        recording.current = { calls, handlers, snapshot }
+        if (turnHistory) history.current = turnHistory
+        recording.current = { calls, handlers, snapshot, promptId }
         setRecorded(calls.length > 0)
         setRunning(false)
         abortRef.current = null
         editor.setEditable(true)
+        // A stop, an error, or a turn that hit max_tokens mid-call leaves a
+        // tool call with no result. Its card would otherwise pulse forever.
+        setConversation((prior) =>
+          prior.map((item) =>
+            item.kind === 'edit' && !isSettled(item.edit)
+              ? { ...item, edit: { ...item.edit, status: 'incomplete' } }
+              : item,
+          ),
+        )
       }
     },
     [
       running,
       apiKey,
+      nextItemId,
+      changeEdit,
       beginEdit,
       appendChunk,
       commitEdit,
@@ -494,18 +588,26 @@ export function useLiveDocument() {
       eagerStreaming,
     ],
   )
-  const revert = useCallback((edit: EditRecord) => {
-    const editor = editorRef.current
-    if (!editor) return
-    editor.commands.setContent(parse(edit.before), { emitUpdate: false })
-    setEdits((prior) => prior.filter((entry) => entry.id !== edit.id))
-    highlight(null)
-  }, [highlight])
+  /**
+   * Restores the document to the snapshot taken before the edit's run. The card
+   * stays and is marked instead of being removed: the model did make the call,
+   * and dropping it out of the transcript would misreport the conversation.
+   */
+  const revert = useCallback(
+    (edit: EditRecord) => {
+      const editor = editorRef.current
+      if (!editor) return
+      editor.commands.setContent(parse(edit.before), { emitUpdate: false })
+      changeEdit(edit.id, { reverted: true })
+      highlight(null)
+    },
+    [changeEdit, highlight],
+  )
 
   /**
    * Loads a document and clears everything that described the previous one. The
-   * timeline, buffer, edits, and recording are all readings of a run against a
-   * document that is no longer open, so none of them survive the switch.
+   * timeline, buffer, conversation, and recording are all readings of a run
+   * against a document that is no longer open, so none of them survive.
    *
    * This is the only place a document swap resets state. Conversation history
    * belongs here too, since a model told about the previous document explains
@@ -518,11 +620,10 @@ export function useLiveDocument() {
       cancelReplay()
       streams.current.clear()
       recording.current = null
-      conversation.current = []
+      history.current = []
 
       setDocument(next)
-      setMessages([])
-      setEdits([])
+      setConversation([])
       setRuns([])
       setTimeline([])
       setBuffer(null)
@@ -570,8 +671,7 @@ export function useLiveDocument() {
     probes,
     setEditor,
     currentMarkdown,
-    messages,
-    edits,
+    conversation,
     running,
     error,
     timeToFirstEdit,
