@@ -87,7 +87,6 @@ export function Workspace() {
           prompts={doc.document.prompts}
           traps={doc.traps}
           conversation={doc.conversation}
-          runs={doc.runs}
           running={doc.running}
           replaying={doc.replaying}
           hasKey={Boolean(doc.apiKey)}
@@ -103,6 +102,7 @@ export function Workspace() {
         buffer={doc.buffer}
         canonical={doc.currentMarkdown}
         probes={doc.probes}
+        runs={doc.runs}
         onShowMatches={doc.showMatches}
         onReplay={doc.replay}
         replaying={doc.replaying}
