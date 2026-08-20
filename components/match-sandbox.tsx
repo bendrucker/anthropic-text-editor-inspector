@@ -40,7 +40,7 @@ export function MatchSandbox({ canonical, probes, onShowMatches }: MatchSandboxP
     <div className="flex min-h-0 flex-col gap-2 overflow-y-auto px-4 py-3">
       <div>
         <p className="text-[11px] font-medium text-slate-500">Try the matcher</p>
-        <p className="mt-0.5 text-[10px] leading-relaxed text-slate-400">
+        <p className="mt-0.5 text-[10px] leading-relaxed text-slate-600">
           Runs the same <span className="font-mono">locateEdit</span> the tool runs, against the live
           document. No model, no key.
         </p>
@@ -67,7 +67,7 @@ export function MatchSandbox({ canonical, probes, onShowMatches }: MatchSandboxP
         onChange={(event) => setOldStr(event.target.value)}
         rows={3}
         placeholder="old_str"
-        className="resize-none rounded border border-slate-200 bg-white px-2 py-1.5 font-mono text-[10px] leading-relaxed text-slate-700 placeholder:text-slate-300 focus:border-slate-400 focus:outline-none"
+        className="resize-none rounded border border-slate-200 bg-white px-2 py-1.5 font-mono text-[10px] leading-relaxed text-slate-700 placeholder:text-slate-500 focus:border-slate-400 focus:outline-none"
       />
 
       <label className="flex items-center gap-1.5 text-[10px] text-slate-500">
