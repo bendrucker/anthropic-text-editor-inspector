@@ -36,7 +36,7 @@ export function DocumentPicker({
           disabled={disabled}
           onChange={(event) => onSelect(event.target.value)}
           aria-label="Document"
-          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-300 focus:outline-none disabled:opacity-50"
+          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-300 focus-ring disabled:opacity-50"
         >
           <optgroup label="Samples">
             {/* A native option list is drawn by the OS, so this one description

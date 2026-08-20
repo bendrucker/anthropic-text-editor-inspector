@@ -67,7 +67,7 @@ export function MatchSandbox({ canonical, probes, onShowMatches }: MatchSandboxP
         onChange={(event) => setOldStr(event.target.value)}
         rows={3}
         placeholder="old_str"
-        className="resize-none rounded border border-slate-200 bg-white px-2 py-1.5 font-mono text-[10px] leading-relaxed text-slate-700 placeholder:text-slate-500 focus:border-slate-400 focus:outline-none"
+        className="resize-none rounded border border-slate-200 bg-white px-2 py-1.5 font-mono text-[10px] leading-relaxed text-slate-700 placeholder:text-slate-500 focus:border-slate-400 focus-ring"
       />
 
       <label className="flex items-center gap-1.5 text-[10px] text-slate-500">

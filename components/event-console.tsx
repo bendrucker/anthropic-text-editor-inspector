@@ -731,7 +731,7 @@ function FilterBox({ value, onChange }: { value: string; onChange: (next: string
         onKeyDown={(event) => event.key === 'Escape' && onChange('')}
         placeholder="Filter"
         aria-label="Filter events"
-        className="min-w-0 flex-1 bg-transparent text-[11px] text-slate-700 placeholder:text-slate-500 focus:outline-none"
+        className="min-w-0 flex-1 bg-transparent text-[11px] text-slate-700 placeholder:text-slate-500 focus-ring"
       />
       {value && (
         <Tooltip content="Clear the filter. Escape does the same from inside the box.">

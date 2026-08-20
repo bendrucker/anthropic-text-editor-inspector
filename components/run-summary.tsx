@@ -253,7 +253,7 @@ function RenderBar({ timing }: { timing: EditTiming }) {
 function Legend({ explanation, children }: { explanation: ReactNode; children: ReactNode }) {
   return (
     <Tooltip content={explanation} side="top">
-      <span tabIndex={0} className="rounded-xs focus-visible:outline-2 focus-visible:outline-slate-500">
+      <span tabIndex={0} className="focus-ring rounded-xs">
         {children}
       </span>
     </Tooltip>

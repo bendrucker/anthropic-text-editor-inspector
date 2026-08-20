@@ -43,7 +43,7 @@ export function Tooltip({
     <Primitive.Root>
       <Primitive.Trigger asChild>
         {disabled ? (
-          <span role="button" aria-disabled tabIndex={0} className="inline-flex">
+          <span role="button" aria-disabled tabIndex={0} className="focus-ring inline-flex">
             {children}
           </span>
         ) : (

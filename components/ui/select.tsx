@@ -7,7 +7,7 @@ export const SelectValue = Primitive.Value
 export function SelectTrigger({ className, children, ...props }: React.ComponentProps<typeof Primitive.Trigger>) {
   return (
     <Primitive.Trigger
-      className={`flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-300 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${className ?? ''}`}
+      className={`flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-300 focus-ring disabled:cursor-not-allowed disabled:opacity-50 ${className ?? ''}`}
       {...props}
     >
       {children}
@@ -37,7 +37,7 @@ export function SelectItem({ value, label, note }: { value: string; label: strin
   return (
     <Primitive.Item
       value={value}
-      className="relative rounded px-2 py-1.5 pr-7 outline-none data-[highlighted]:bg-slate-100"
+      className="focus-ring-inset relative rounded px-2 py-1.5 pr-7 data-[highlighted]:bg-slate-100"
     >
       <Primitive.ItemText>
         <span className="text-xs font-medium text-slate-700">{label}</span>
