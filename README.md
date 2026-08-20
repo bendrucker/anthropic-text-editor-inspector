@@ -12,11 +12,11 @@
 
 This application is bring-your-own-key (BYOK). You must first create an [API key](https://platform.claude.com/dashboard) from your Claude organization. This key is stored on your device and only sent to Anthropic's servers.
 
-### Local Development
+## Dev Server Key
 
-Set `ANTHROPIC_API_KEY` in your shell or in a gitignored `.env.local`, and `bun run dev` authenticates for you. The dev server already forwards requests to the API, so it attaches the key on the way through and the browser never receives it. The key prompt is replaced by a badge naming the dev server as the source.
+Set `ANTHROPIC_API_KEY` in your shell or in a gitignored `.env.local`. `bun run dev` then authenticates for you: the dev server forwards requests to the API and attaches the key on the way through, so the browser never receives it. A badge naming the dev server as the key source replaces the prompt, and a key you pasted earlier is ignored while the variable is set.
 
-Only the dev server can do this. A build has no server to hold a key, so it still asks for one.
+Only the dev server supplies a key this way. `bun run preview` serves a build over a server too and deliberately attaches nothing, since that would leave an authenticated relay listening on the port.
 
 ## Sequence
 
