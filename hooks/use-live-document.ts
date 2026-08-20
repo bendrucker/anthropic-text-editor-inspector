@@ -18,6 +18,7 @@ import {
 } from '@/lib/agent'
 import type { BufferState, TimelineEntry } from '@/lib/timeline'
 import { instrument, dispatch, type RecordedCall } from '@/lib/recording'
+import { afterPaint, countPaintFrames, type PaintCounter } from '@/lib/paint'
 import type { AgentHandlers } from '@/lib/agent'
 import { keyStore } from '@/lib/api-key'
 
@@ -76,6 +77,8 @@ export type ConversationItem =
   | { kind: 'reply'; id: string; text: string }
   | { kind: 'edit'; id: string; edit: EditRecord }
 
+const countOf = (n: number, noun: string) => `${n} ${noun}${n === 1 ? '' : 's'}`
+
 /** True once nothing more will arrive for this edit. */
 export function isSettled(edit: EditRecord): boolean {
   return edit.status !== 'buffering' && edit.status !== 'streaming'
@@ -85,6 +88,10 @@ interface StreamState {
   target: EditTarget
   cursor: number
   anchor: number
+  /** Set when the first replacement characters are handed to the editor. */
+  textPainted: boolean
+  /** Resolved a frame later, when those characters are known to be on screen. */
+  textPaintedAtMs: number | null
 }
 
 /** One completed request, kept so configurations can be compared in a demo. */
@@ -156,6 +163,12 @@ export function useLiveDocument() {
   } | null>(null)
   const replayTimers = useRef<number[]>([])
   const abortRef = useRef<AbortController | null>(null)
+  /**
+   * Paint timestamps share a clock with `performance.now()`, so they need only
+   * the run's origin to land on the same axis as the wire events.
+   */
+  const paintClock = useRef<(at: number) => number>(() => 0)
+  const paintFrames = useRef<PaintCounter | null>(null)
 
   // Read once on mount. The Keychain answers asynchronously, so a stale reply
   // after the user has already typed a key would otherwise overwrite it.
@@ -259,6 +272,26 @@ export function useLiveDocument() {
     setTimeline((prior) => [...prior, { ...entry, id: `app-${appSequence.current++}`, source: 'app' }])
   }, [])
 
+  /**
+   * Stamps an entry with the moment its change was on screen rather than the
+   * moment it was dispatched. The gap between the two is the app's whole claim.
+   */
+  const recordPaint = useCallback(
+    (build: (atMs: number) => Omit<TimelineEntry, 'id' | 'source' | 'atMs'>) => {
+      afterPaint((at) => {
+        const atMs = paintClock.current(at)
+        record({ ...build(atMs), atMs })
+      })
+    },
+    [record],
+  )
+
+  /** A paint timestamp as milliseconds into the run, or null when nothing painted. */
+  const paintedAt = useCallback(
+    (at: number | null | undefined) => (at == null ? null : paintClock.current(at)),
+    [],
+  )
+
   /** Opens a hole at the target so replacement characters have somewhere to land. */
   const beginEdit = useCallback(
     (id: string, oldStr: string): EditTarget['kind'] | null => {
@@ -272,7 +305,13 @@ export function useLiveDocument() {
       const target = resolveTarget(editor.state.doc, canonical, located.matches[0])
       if (target.kind !== 'inline') {
         // Structural edits are applied whole on commit. Nothing streams.
-        streams.current.set(id, { target, cursor: 0, anchor: 0 })
+        streams.current.set(id, {
+          target,
+          cursor: 0,
+          anchor: 0,
+          textPainted: false,
+          textPaintedAtMs: null,
+        })
         return target.kind
       }
 
@@ -285,7 +324,14 @@ export function useLiveDocument() {
         }),
       )
 
-      streams.current.set(id, { target, cursor: from, anchor: from })
+      paintFrames.current?.touched()
+      streams.current.set(id, {
+        target,
+        cursor: from,
+        anchor: from,
+        textPainted: false,
+        textPaintedAtMs: null,
+      })
       editor.commands.scrollIntoView()
       return target.kind
     },
@@ -305,24 +351,64 @@ export function useLiveDocument() {
         .setMeta(streamHighlightKey, { from: stream.anchor, to: at + chunk.length, variant: 'writing' }),
     )
     stream.cursor = at + chunk.length
+
+    paintFrames.current?.touched()
+    if (!stream.textPainted) {
+      stream.textPainted = true
+      afterPaint((at) => {
+        // Kept on the stream so the commit can say how long the replacement
+        // spent visibly landing, which is the whole case for streaming it.
+        stream.textPaintedAtMs = paintClock.current(at)
+        record({
+          atMs: stream.textPaintedAtMs,
+          label: 'paint · first replacement text',
+          detail: 'Replacement characters are on screen while new_str is still arriving.',
+          tone: 'good',
+        })
+      })
+    }
+  }, [record])
+
+  /**
+   * Puts the authoritative document on screen and answers whether anything
+   * moved. A streamed edit is already showing this text, so its reconcile costs
+   * no paint. Every other path changes the document here and counts as one.
+   */
+  const reconcile = useCallback((document: string): boolean => {
+    const editor = editorRef.current
+    if (!editor) return false
+
+    const onScreen = serialize(editor.getJSON())
+    editor.commands.setContent(parse(document), { emitUpdate: false })
+    if (onScreen === document) return false
+    paintFrames.current?.touched()
+    return true
   }, [])
 
-  /** Reconciles against the server's authoritative document once the edit is validated. */
-  const commitEdit = useCallback((id: string, document: string) => {
-    const editor = editorRef.current
-    const stream = streams.current.get(id)
-    if (!editor) return
+  /**
+   * Reconciles against the server's authoritative document once the edit is
+   * validated. Answers whether this commit is the first time the edit was
+   * visible, which is true of every path except the one that streamed.
+   */
+  const commitEdit = useCallback(
+    (id: string, document: string): boolean => {
+      const editor = editorRef.current
+      const stream = streams.current.get(id)
+      if (!editor) return false
 
-    if (!stream || stream.target.kind !== 'inline') {
-      editor.commands.setContent(parse(document), { emitUpdate: false })
-      highlight(null)
+      if (!stream || stream.target.kind !== 'inline') {
+        const moved = reconcile(document)
+        highlight(null)
+        streams.current.delete(id)
+        return Boolean(stream) && moved
+      }
+
+      highlight({ from: stream.anchor, to: stream.cursor, variant: 'settled' })
       streams.current.delete(id)
-      return
-    }
-
-    highlight({ from: stream.anchor, to: stream.cursor, variant: 'settled' })
-    streams.current.delete(id)
-  }, [highlight])
+      return false
+    },
+    [highlight, reconcile],
+  )
 
   // Unblocks the UI right away. The controller stays in `abortRef` so the run's
   // own cleanup still recognizes itself and marks the abandoned tool call.
@@ -352,6 +438,13 @@ export function useLiveDocument() {
       setReplaying(true)
       setTimeline([])
       setBuffer(null)
+
+      // A replay paints for real, at a fraction of the original speed. Scaling
+      // puts its paints back on the axis the recorded wire events are stamped
+      // against, so the two still read as one run.
+      const replayOrigin = performance.now()
+      paintClock.current = (at) => Math.round((at - replayOrigin) * speed)
+      paintFrames.current = countPaintFrames()
       // Rewind the conversation to the prompt this run answered. Replaying into
       // the replies it already produced would append the text a second time.
       setConversation((prior) => {
@@ -491,6 +584,16 @@ export function useLiveDocument() {
             tone: applyPath ? 'good' : 'bad',
           })
 
+          // Only the inline path moves anything yet. The other two hold the
+          // document still until commit, so their first paint is the commit.
+          if (applyPath === 'inline') {
+            recordPaint((atMs) => ({
+              label: 'paint · target opened',
+              detail: `The hole is on screen ${atMs - event.elapsedMs}ms after old_str closed, with new_str still arriving.`,
+              tone: 'good',
+            }))
+          }
+
           changeEdit(event.id, {
             status: 'streaming',
             oldStr: event.oldStr,
@@ -512,11 +615,32 @@ export function useLiveDocument() {
             newStr: event.newStr,
             newStrComplete: true,
           })
+
+          const stream = streams.current.get(event.id)
+          if (stream?.target.kind !== 'inline') return
+          const openedAt = stream.textPaintedAtMs
+
+          // The commit itself paints nothing on this path, since the characters
+          // are already there. The frame the last of them landed in is the
+          // settle, so this reads the counter rather than timing its own call.
+          afterPaint(() => {
+            const atMs = paintedAt(paintFrames.current?.read().lastAtMs)
+            if (atMs === null) return
+            record({
+              atMs,
+              label: 'paint · edit settled',
+              detail:
+                openedAt === null
+                  ? `The replacement is on screen at ${atMs}ms.`
+                  : `The replacement finished landing ${atMs - openedAt}ms after its first characters appeared.`,
+              tone: 'good',
+            })
+          })
         },
 
         onEditRejected(event) {
           record({
-            atMs: 0,
+            atMs: event.elapsedMs,
             label:
               event.matches.length > 1
                 ? `ambiguous · ${event.matches.length} matches highlighted`
@@ -539,8 +663,16 @@ export function useLiveDocument() {
             },
             blankEdit(event.id, snapshot),
           )
-          // The hole opened for a rejected edit has to be closed again.
-          editor.commands.setContent(parse(event.document), { emitUpdate: false })
+          // Closes the hole opened for the rejected edit. This also lands any
+          // earlier edit of the run that never streamed, so what moved on
+          // screen decides whether there was a paint, not what was rejected.
+          if (reconcile(event.document)) {
+            recordPaint(() => ({
+              label: 'paint · document restored',
+              detail: 'The document is back on screen without the rejected edit.',
+              tone: 'bad',
+            }))
+          }
           streams.current.delete(event.id)
           if (event.matches.length > 1) showMatches(event.matches)
           else highlight(null)
@@ -548,24 +680,68 @@ export function useLiveDocument() {
 
         onDone(event) {
           turnHistory = event.history
-          for (const id of [...streams.current.keys()]) commitEdit(id, event.document)
-          editor.commands.setContent(parse(event.document), { emitUpdate: false })
-          setRuns((prior) => [
-            {
-              model: event.model,
-              fastMode: event.fastMode,
-              effort: event.effort,
-              timeToFirstEditMs: firstEditMs,
-              timing: firstTiming,
-              prompt,
-            },
-            ...prior,
-          ])
+          // Several structural edits commit in the same frame, so they are one
+          // paint and get one entry rather than a row each.
+          let committed = 0
+          for (const id of [...streams.current.keys()]) {
+            if (commitEdit(id, event.document)) committed += 1
+          }
+          if (committed > 0) {
+            recordPaint((atMs) => ({
+              label: 'paint · edit settled',
+              detail: `${countOf(committed, 'edit')} replaced whole on commit, so ${atMs}ms is the first moment any of them was visible.`,
+              tone: 'good',
+            }))
+          }
+
+          reconcile(event.document)
+
+          // Read a paint later, so the frames the last streamed characters
+          // landed in are counted before the run is summed up.
+          afterPaint(() => {
+            const painted = paintFrames.current?.read()
+            const paintMs = paintedAt(painted?.firstAtMs)
+            const settledMs = paintedAt(painted?.lastAtMs)
+
+            // A commit-on-settle path repaints at the very end, so the document
+            // can finish changing after the last wire event rather than before.
+            const frames = countOf(painted?.frames ?? 0, 'painted frame')
+            const tailMs = event.elapsedMs - (settledMs ?? 0)
+            record({
+              atMs: event.elapsedMs,
+              label: 'run complete',
+              detail:
+                settledMs === null
+                  ? `${event.elapsedMs}ms in total, with nothing painted. The document never changed.`
+                  : tailMs > 0
+                    ? `${event.elapsedMs}ms in total, across ${frames}. The document stopped changing at ${settledMs}ms, so the last ${tailMs}ms bought no visible change.`
+                    : `${event.elapsedMs}ms in total, across ${frames}. The document finished changing at ${settledMs}ms, after the run itself had ended.`,
+            })
+
+            setRuns((prior) => [
+              {
+                model: event.model,
+                fastMode: event.fastMode,
+                effort: event.effort,
+                timeToFirstEditMs: firstEditMs,
+                timing: firstTiming && {
+                  ...firstTiming,
+                  ...(paintMs === null ? {} : { paintMs }),
+                  ...(settledMs === null ? {} : { settledMs }),
+                  totalMs: event.elapsedMs,
+                },
+                prompt,
+              },
+              ...prior,
+            ])
+          })
         },
       }
 
       const calls: RecordedCall[] = []
       const startedAt = performance.now()
+      paintClock.current = (at) => Math.round(at - startedAt)
+      paintFrames.current = countPaintFrames()
 
       try {
         await runEdit({
@@ -625,9 +801,12 @@ export function useLiveDocument() {
       beginEdit,
       appendChunk,
       commitEdit,
+      reconcile,
       highlight,
       showMatches,
       record,
+      recordPaint,
+      paintedAt,
       cancelReplay,
       model,
       fastEnabled,
