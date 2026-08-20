@@ -463,9 +463,22 @@ function barScaleMs(runs: Run[]): number {
   return Math.max(Math.ceil(slowest / 1000) * 1000, 1000)
 }
 
+/**
+ * Which row the reader opened.
+ *
+ * `null` is a reader who has not chosen, and follows the newest run. `closed` is
+ * a reader who shut that row, which has to be a state of its own: without it,
+ * closing the newest row would fall back to the default and reopen it in the
+ * same click.
+ *
+ * A run itself is the third case. `Run` carries no id, so the object is the
+ * identity, which holds for exactly as long as the run is listed.
+ */
+type Opened = Run | 'closed' | null
+
 /** Recent runs, so a demo can compare configurations rather than assert a number. */
 export function RunHistory({ runs }: { runs: Run[] }) {
-  const [opened, setOpened] = useState<Run | null>(null)
+  const [opened, setOpened] = useState<Opened>(null)
 
   if (runs.length === 0) {
     return (
@@ -479,6 +492,12 @@ export function RunHistory({ runs }: { runs: Run[] }) {
 
   const shown = runs.slice(0, VISIBLE_RUNS)
   const scaleMs = barScaleMs(shown)
+  // Runs are prepended, so the sixth run after a reader opened a row pushes that
+  // run off the end of this window. The object survives in state and can no
+  // longer match anything drawn, which collapses all five rows rather than the
+  // one that left, and takes the default row with it. Letting go of a run that
+  // is no longer listed is what returns the list to its default.
+  const selected = opened === null || opened === 'closed' || shown.includes(opened) ? opened : null
 
   return (
     <div className="min-h-0 overflow-y-auto px-4 py-3">
@@ -512,15 +531,18 @@ export function RunHistory({ runs }: { runs: Run[] }) {
         First-byte latency varies by seconds between runs. Compare the render span, not the wait.
       </p>
       <ul className="space-y-2">
-        {shown.map((run, index) => (
-          <RunRow
-            key={index}
-            run={run}
-            scaleMs={scaleMs}
-            expanded={opened === null ? index === 0 : opened === run}
-            onOpen={() => setOpened(run)}
-          />
-        ))}
+        {shown.map((run, index) => {
+          const expanded = selected === null ? index === 0 : selected === run
+          return (
+            <RunRow
+              key={index}
+              run={run}
+              scaleMs={scaleMs}
+              expanded={expanded}
+              onOpen={() => setOpened(expanded ? 'closed' : run)}
+            />
+          )
+        })}
       </ul>
     </div>
   )
