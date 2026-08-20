@@ -17,7 +17,7 @@ The app can declare it, and does when the tool selector says so. It defaults to 
 eager_input_streaming?: boolean | null
 ```
 
-`BetaToolTextEditor20250728` has `name`, `type`, `cache_control`, `defer_loading`, `input_examples`, `strict`, and `max_characters`. There is no streaming control on it. Anthropic owns the schema for its own tools, so there is nowhere to ask for input early. The tool reference is explicit about the scope: `eager_input_streaming` is available on user-defined tools only.
+`BetaToolTextEditor20250728` carries no streaming control at all. Anthropic owns the schema for its own tools, so there is nowhere to ask for input early, and the tool reference is explicit about the scope: `eager_input_streaming` is available on user-defined tools only.
 
 The rest of this project follows from that. `lib/agent.ts` builds a tool named `str_replace` taking the same two parameters the built-in one takes, to reach the flag. Selecting the built-in tool sends `BUILTIN_EDITOR_TOOL` instead and runs the same loop, which is how the two get compared on one timeline. Its input carries `command` and `path` around the same `old_str` and `new_str`, so the same buffer scanner reads both. The document has no file behind it, so it is addressed as `/document.md`, `view` is answered with the document, and `create` and `insert` come back as errors.
 
@@ -35,15 +35,7 @@ The field documents its own default: unset, behavior follows the beta headers on
 
 A tool schema is an object, and the model fills it in the order the properties are declared. Declaring `old_str` first means it closes while `new_str` is still arriving, which is the only reason a UI can start rendering before the call ends.
 
-`buildTool` swaps the two so the difference is observable:
-
-```ts
-const ordered = options.oldStrFirst
-  ? { old_str: OLD_STR_PROPERTY, new_str: NEW_STR_PROPERTY }
-  : { new_str: NEW_STR_PROPERTY, old_str: OLD_STR_PROPERTY }
-```
-
-Only `properties` changes. `required` stays `['old_str', 'new_str']` in both branches, so the toggle isolates ordering from everything else in the schema.
+`buildTool` swaps the two so the difference is observable. Only `properties` changes, and `required` stays `['old_str', 'new_str']` in both branches, so the toggle isolates ordering from everything else in the schema.
 
 Order-follows-schema is observed model behavior. Nothing in the API documents it as a guarantee. Build the fallback: when `new_str` closes first, this app still applies the edit correctly at commit time, it just cannot stream anything before then.
 
@@ -57,17 +49,7 @@ Order-follows-schema is observed model behavior. Nothing in the API documents it
 
 `lib/partial-json.ts` scans it instead of parsing it. `scanEditInput` walks the buffer as a state machine: skip whitespace, read a key, expect a colon, read a value, repeat. It stops at the first thing it cannot finish and returns what it already has.
 
-`readString` does the decoding, and its return type carries the distinction the UI depends on:
-
-```ts
-interface StringRead {
-  value: string
-  complete: boolean
-  end: number
-}
-```
-
-`complete` is true only when a closing quote was found. It is false when the buffer ends mid-string, and false when the buffer ends on a lone backslash or on a `\u` with fewer than four hex digits available:
+`readString` does the decoding, and its return type carries the distinction the UI depends on: a `value`, an `end`, and a `complete` flag. `complete` is true only when a closing quote was found. It is false when the buffer ends mid-string, and false when the buffer ends on a lone backslash or on a `\u` with fewer than four hex digits available:
 
 ```ts
 // A lone trailing backslash is the front half of an escape still in flight.
@@ -76,13 +58,7 @@ if (i + 1 >= buffer.length) return { value, complete: false, end: buffer.length 
 
 Withholding the half-decoded escape keeps every prefix the scanner returns a correct prefix of the final string. The UI can append the new characters on each fragment without ever revising what it already showed.
 
-That flag gates the whole interface. `old_str` present and incomplete means the target is still growing. `old_str` present and complete means the target is final even though the call has not ended:
-
-```ts
-if (parsed.oldStrComplete && parsed.oldStr && !announced.has(index)) {
-```
-
-The app opens a hole in the document at that moment, and every later `new_str` fragment streams into it. Treating "present" as "final" would locate a target from a prefix and edit the wrong text.
+That flag gates the whole interface. `old_str` present and incomplete means the target is still growing. `old_str` present and complete means the target is final even though the call has not ended, which is the condition `runEdit` watches for. The app opens a hole in the document at that moment, and every later `new_str` fragment streams into it. Treating "present" as "final" would locate a target from a prefix and edit the wrong text.
 
 ## Match semantics
 
@@ -91,13 +67,12 @@ The app opens a hole in the document at that moment, and every later `new_str` f
 The messages are written as instructions, because the model is the reader:
 
 ```ts
-message:
-  `old_str matched ${matches.length} times and must identify exactly one location.` +
-  ' Extend it with surrounding text until it is unique, or set replace_all to true' +
-  ' to change every occurrence.',
+`old_str matched ${matches.length} times and must identify exactly one location.` +
+  ' Extend it with surrounding text until it is unique' +
+  (offerReplaceAll ? ', or set replace_all to true to change every occurrence.' : '.'),
 ```
 
-That text goes back verbatim as the tool result. A message that only reports what went wrong wastes the round trip. This one names both recoveries.
+That text goes back verbatim as the tool result. A message that only reports what went wrong wastes the round trip. This one names the recoveries the model can actually reach, which is why the second one is conditional: the built-in tool's schema has no `replace_all`, and offering it there would spend the retry on a parameter that does not exist.
 
 `describeNearMiss` appends a second sentence when it can classify the failure. It collapses whitespace on both sides and re-tests:
 
@@ -129,14 +104,13 @@ Serialized, the same row reads:
 
 The first fails to match. `describeNearMiss` exists to say why, and the matcher panel in the app ships that exact string as a probe so the rejection is reachable without spending a token.
 
-`bun run roundtrip` asserts the property the whole scheme rests on:
+`bun run roundtrip` asserts the property the whole scheme rests on, once per document:
 
 ```
-source -> parse -> serialize matches source: true
-serialize is idempotent:                     true
+ok    trail-conditions.md     canonical source: true  idempotent: true  traps: 3
 ```
 
-Idempotence is the requirement. The model sees serializer output, so `serialize(parse(x))` must equal `x` for any `x` the serializer produced. Without it the model builds `old_str` from one string while the matcher searches another, and edits fail in ways that look random. The demo document is checked in already canonical, which is why the first line also passes.
+Idempotence is the requirement. The model sees serializer output, so `serialize(parse(x))` must equal `x` for any `x` the serializer produced. Without it the model builds `old_str` from one string while the matcher searches another, and edits fail in ways that look random. Every document is checked in already canonical, which is what `canonical source` reports.
 
 ## Two address spaces
 
@@ -153,20 +127,7 @@ if (offset === -1 || text.indexOf(matched, offset + 1) !== -1) {
 
 Widening is right for applying and wrong for showing. Highlighting four ambiguous matches through `resolveTarget` painted 31 ranges in this app, because every match inside a list item widened to its entire list.
 
-`findTextRanges` answers where to show. It builds a flat transcript of the document's text alongside the editor position of each character, inserting a newline at block boundaries so a needle cannot silently match across them, then returns exact ranges:
-
-```ts
-for (let index = 0; index < node.text.length; index += 1) positions.push(pos + index)
-```
-
-`showMatches` prefers the exact ranges and falls back only when the two disagree on how many matches exist:
-
-```ts
-const exact = findTextRanges(editor.state.doc, needle)
-const ranges = exact.length === matches.length ? ... : ...
-```
-
-Same document, same match, two questions, two functions.
+`findTextRanges` answers where to show. It builds a flat transcript of the document's text alongside the editor position of each character, inserting a newline at block boundaries so a needle cannot silently match across them, then returns exact ranges. `showMatches` prefers those and falls back to `resolveTarget` only when the two disagree on how many matches exist.
 
 ## Apply paths
 
@@ -175,11 +136,7 @@ Same document, same match, two questions, two functions.
 `inline` streams. `beginEdit` deletes the matched range, leaving a hole, and records a cursor:
 
 ```ts
-editor.view.dispatch(
-  editor.state.tr.delete(from, to).setMeta('addToHistory', false).setMeta(streamHighlightKey, {
-    from, to: from, variant: 'writing',
-  }),
-)
+editor.state.tr.delete(from, to).setMeta('addToHistory', false)
 ```
 
 Each `new_str` fragment then inserts at the cursor and advances it. `addToHistory: false` keeps the stream out of the undo stack, so one undo reverts the edit instead of replaying it fragment by fragment.
@@ -191,13 +148,7 @@ if (!stream || stream.target.kind !== 'inline') {
   editor.commands.setContent(parse(document), { emitUpdate: false })
 ```
 
-A table edit always lands here, and the reason is structural. `resolveTarget` checks `block.inlineContent` before it considers anything else, and a table node holds rows rather than inline text:
-
-```ts
-if (!block.inlineContent) {
-  return { kind: 'block', from: span.pos, to: span.pos + block.nodeSize }
-}
-```
+A table edit always lands here, and the reason is structural. `resolveTarget` checks `block.inlineContent` before it considers anything else, and a table node holds rows rather than inline text, so it widens to the whole node.
 
 Serialization gives the same answer independently. When an edit changes the widest cell in a column, the serializer re-pads every row in the table. Replacing `Enterprise` with `Enterprise Accounts` in this document's first table rewrites 6 lines from a 1-line edit. An edit that stays inside the current column width, such as `22%` to `31%`, rewrites only its own row. Either way the node is re-serialized whole, so streaming characters into a text range inside a table would leave the surrounding rows in a state the next `old_str` cannot match against.
 
@@ -227,7 +178,11 @@ results.push({
 
 A third case covers input that never became valid JSON, which eager streaming makes reachable. It returns the raw input under an `INVALID_JSON` key so the model can see what it produced.
 
-The loop pushes the results as a user message and starts another turn. The model reads "matched 4 times, extend it with surrounding text", extends `old_str`, and calls again. Turning `Prompt rules` off in the app drops the uniqueness and padding rules from the system prompt, which makes this loop run often enough to watch.
+The loop pushes the results as a user message and starts another turn. The model reads "matched 4 times, extend it with surrounding text", extends `old_str`, and calls again.
+
+Turning `Prompt rules` off drops the uniqueness and padding rules from the system prompt. It does not reliably produce a rejection. Across 217 attempts against this app's ambiguous strings, 3 were refused, and none by the mechanism the panel describes. Current models settle an ambiguous `old_str` before they call the tool: they extend the needle until it is unique, set `replace_all`, split the edit into several unique calls, or ask which occurrence was meant. The `Ambiguous targets` panel is named for what the document offers rather than for what the model does with it.
+
+To reach the loop on demand, name an `old_str` the document does not contain. Zero matches is the one failure a model cannot resolve by looking harder.
 
 `workingDocument` accumulates across turns:
 
@@ -236,3 +191,60 @@ workingDocument = applyEdit(workingDocument, located.matches, input.new_str)
 ```
 
 Each turn is shown the document as of that moment rather than the original, and `applyEdit` sorts matches back-to-front so earlier offsets stay valid under `replace_all`. The rejection event carries that same working document, so a failed retry cannot roll back edits that already succeeded earlier in the run.
+
+## Two clocks
+
+A run is timed twice, because "when did the bytes arrive" and "when did the screen change" have different answers. `runEdit` owns the wire clock. `startedAt` is taken as the first request leaves the browser, and `since()` stamps every event after it:
+
+```ts
+const startedAt = performance.now()
+const since = () => Math.round(performance.now() - startedAt)
+```
+
+That clock cannot say when anything reached the screen. No browser API reports the paint time of an arbitrary mutation, so `lib/paint.ts` infers it from frame boundaries. `afterPaint` waits two animation frames and then reads the clock, rather than trusting the timestamp the frame was handed:
+
+```ts
+export function afterPaint(callback: (atMs: number) => void): void {
+  requestAnimationFrame(() => requestAnimationFrame(() => callback(performance.now())))
+}
+```
+
+The argument a frame callback receives is that frame's nominal start, which a long preceding frame can push earlier than the frame's own end. Reading `performance.now()` inside the callback cannot land before the paint it reports. The cost is an overshoot of at most one frame, taken deliberately, because a clock that claims an early paint is worse than one that rounds late.
+
+`hooks/use-live-document.ts` owns the paint clock and converts every reading onto the run's axis, so paint entries and wire events can be read down one column. It is also why the two can disagree about order. A frame can land after the stream that caused it has closed, and the console prints both where they arrived rather than re-sorting them.
+
+## Where a run's time goes
+
+A run's wall clock is mostly wait, and the app's own contribution to it is routinely a few percent. The breakdown exists to say which part of the rest is which. `EditTiming` records four readings off the wire clock, in order, so the gaps between them are the wait split into spans that sum back to it:
+
+| Span | Reading | What it covers |
+| --- | --- | --- |
+| retries | `retriesMs` | every turn before the one that produced this edit |
+| connect | `firstByteMs - retriesMs` | network and model start-up |
+| preamble | `toolStartMs - firstByteMs` | text the model wrote before it called the tool |
+| target | `targetMs - toolStartMs` | `old_str` streaming, bounded by the context the match needed |
+
+Every reading is measured from the run rather than from the turn, which is why each span is a subtraction. `retriesMs` is the whole cost of the earlier turns, since the run had done nothing else by then, so a second attempt is named as its own span instead of hiding inside the connection.
+
+Every reading also has to describe the same turn. `targetMs` is read fresh each time an `old_str` closes, per tool call:
+
+```ts
+// This call's own target, not the run's first. A rejected attempt also
+// closes an `old_str`, and the summary reads the timing of whichever
+// edit landed, so a shared reading would describe the wrong turn.
+const targetMs = since()
+```
+
+A run-wide reading among per-turn ones charges the whole retry to whichever gap straddles the turn boundary. When a first attempt is rejected, the rejected turn's `old_str` closes before the retry's tool block has opened, and the subtraction underflows.
+
+Two readings close the run. `settledMs` is on the paint clock and says when the document stopped changing. `totalMs` is on the wire clock and says when the last turn ended. Either can come first. The model usually keeps talking after the edit has landed, but a path that commits on settle repaints at the very end, so the document can finish changing after the run is over.
+
+The bar in the runs list draws those spans in order and leaves bare track wherever nothing happened. The tail is most of a run and bought no visible change, so it gets its honest width and no ink. Every bar is drawn against one denominator, the slowest run listed rounded up to a whole second:
+
+```ts
+return Math.max(Math.ceil(slowest / 1000) * 1000, 1000)
+```
+
+A bar normalized to its own total draws a two second run and a nine second run at the same width, which is the opposite of what a list of runs is for. Taking the slowest run bare fixes that and leaves the scale sliding, so every new slowest run silently reshrinks the rest. Rounding makes it step, and a round number is one the heading can print, which is what turns bar length back into a duration a reader can name.
+
+The console groups its rows into turns for the same reason. A turn is the unit that costs time, and ten seconds spent without the document changing is the answer to where a run went, which no single row states. Each turn's band carries its elapsed span and whether the document changed inside it, and the `request sent` entry that opens the turn is drawn as that band rather than as a row.
