@@ -15,6 +15,8 @@ import { instrument, dispatch, type RecordedCall } from '@/lib/recording'
 import type { AgentHandlers } from '@/lib/agent'
 import { keyStore } from '@/lib/api-key'
 
+export type ApplyPath = EditTarget['kind']
+
 export interface ChatMessage {
   role: 'user' | 'assistant'
   text: string
@@ -26,7 +28,7 @@ export interface EditRecord {
   newStr: string
   status: 'streaming' | 'applied' | 'rejected'
   /** Which apply path ran. A table edit re-pads its column, so it cannot stream. */
-  applyPath?: EditTarget['kind']
+  applyPath?: ApplyPath
   message?: string
   /** Document snapshot from immediately before this edit, for one-click revert. */
   before: string
@@ -48,10 +50,31 @@ export interface Run {
   prompt: string
 }
 
-const APPLY_PATH_DETAIL: Record<string, string> = {
-  inline: 'The match sits inside one text block, so characters stream in as they arrive.',
-  block: 'The match crosses Markdown syntax, so the node is replaced whole on commit.',
-  document: 'The match spans blocks, so the document is reparsed on commit.',
+/**
+ * The three apply paths, named once.
+ *
+ * `summary` is why the path was taken and `during` is what that means for the
+ * document while the call is still open, which is the whole answer to "why is
+ * nothing moving". The run inspector's timeline and the edit card both read
+ * from here, so a run cannot describe a path one way and the card another.
+ */
+export const APPLY_PATHS: Record<ApplyPath, { label: string; summary: string; during: string }> = {
+  inline: {
+    label: 'streamed inline',
+    summary: 'The match sits inside one text block, so characters land in the document as they arrive.',
+    during: 'Characters are landing in the document as they arrive.',
+  },
+  block: {
+    label: 'block replaced',
+    summary:
+      'The match crosses Markdown syntax, so the whole node is replaced on commit. A table edit re-pads its column.',
+    during: 'The node is replaced whole on commit, so the document holds still until then.',
+  },
+  document: {
+    label: 'document reparsed',
+    summary: 'The match spans blocks, so the document is reparsed on commit.',
+    during: 'The document is reparsed on commit, so it holds still until then.',
+  },
 }
 
 export function useLiveDocument() {
@@ -340,7 +363,7 @@ export function useLiveDocument() {
             atMs: event.elapsedMs,
             label: applyPath ? `target resolved · ${applyPath}` : 'target not found yet',
             detail: applyPath
-              ? APPLY_PATH_DETAIL[applyPath]
+              ? APPLY_PATHS[applyPath].summary
               : 'No unique match in the current document. The tool result will say so.',
             tone: applyPath ? 'good' : 'bad',
           })

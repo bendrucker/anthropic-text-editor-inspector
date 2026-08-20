@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { Streamdown } from 'streamdown'
-import type { ChatMessage, EditRecord, Run } from '@/hooks/use-live-document'
+import { FileText, Pilcrow, TextCursor } from 'lucide-react'
+import {
+  APPLY_PATHS,
+  type ApplyPath,
+  type ChatMessage,
+  type EditRecord,
+  type Run,
+} from '@/hooks/use-live-document'
 import type { Trap } from '@/lib/traps'
 import { ExactText } from './ui/exact-text'
 import { RunHistory } from './run-controls'
@@ -207,37 +214,35 @@ function EditCard({ edit, onRevert }: { edit: EditRecord; onRevert: (edit: EditR
         <div className="space-y-1.5">
           <ExactText text={edit.oldStr} className="text-red-700/80 line-through decoration-red-300" />
           <ExactText text={edit.newStr} className="text-emerald-700" />
+          {edit.applyPath && (
+            <p className="pt-0.5 text-[11px] leading-relaxed text-slate-400">
+              {APPLY_PATHS[edit.applyPath].summary}
+            </p>
+          )}
         </div>
       )}
     </div>
   )
 }
 
-const APPLY_PATH_NOTES: Record<string, { label: string; title: string }> = {
-  inline: {
-    label: 'streamed inline',
-    title: 'The match sits inside one text block, so characters land as they arrive.',
-  },
-  block: {
-    label: 'applied as block',
-    title: 'The match crosses Markdown syntax, so the whole node is replaced on commit. A table edit re-pads its column.',
-  },
-  document: {
-    label: 'applied whole',
-    title: 'The match spans multiple blocks, so the document is reparsed on commit.',
-  },
+const PATH_ICONS: Record<ApplyPath, typeof TextCursor> = {
+  inline: TextCursor,
+  block: Pilcrow,
+  document: FileText,
 }
 
-function ApplyPathBadge({ path }: { path: string }) {
-  const note = APPLY_PATH_NOTES[path]
-  if (!note) return null
+/**
+ * Which of the three mechanisms ran, said rather than hinted. The distinction is
+ * the lesson, so the sentence sits next to the badge instead of inside a `title`
+ * a touch device never shows.
+ */
+function ApplyPathBadge({ path }: { path: ApplyPath }) {
+  const Icon = PATH_ICONS[path]
 
   return (
-    <span
-      title={note.title}
-      className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500"
-    >
-      {note.label}
+    <span className="flex items-center gap-1 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
+      <Icon className="size-2.5" />
+      {APPLY_PATHS[path].label}
     </span>
   )
 }
