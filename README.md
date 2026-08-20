@@ -52,7 +52,7 @@ sequenceDiagram
 
 ## Controls
 
-The tool setup row picks the tool and carries three switches: **Prompt rules**, **old_str first**, and **Eager streaming**. Hovering one shows what both of its positions do and marks the one in force. The last two go inert under the built-in tool, which owns its own schema. **Prompt rules** turns out to carry very little: across 144 runs on the ambiguity traps it moved the rejection rate by nothing worth reporting, because the model satisfies uniqueness and table padding from its own training either way. Model, effort, and fast mode sit in the header.
+The tool setup row picks the tool and carries three switches: **Prompt rules**, **old_str first**, and **Eager streaming**. Hovering one shows what both of its positions do and marks the one in force. The last two go inert under the built-in tool, which owns its own schema. **Prompt rules** turns out to carry very little. The model satisfies uniqueness and table padding from its own training whether the system prompt states them or not, so the switch measures how little the prompt is carrying. Model, effort, and fast mode sit in the header.
 
 ## Editor Tool
 
@@ -66,6 +66,8 @@ Neither tool reliably reaches the first edit sooner. First-byte latency varies b
 Server-defined describes the schema, not where the tool runs. The built-in tool comes back as a `tool_use` block this app executes and answers, exactly like the custom one. It addresses a file by path, and there is no file, so the open document stands in at `/document.md` and its other commands are refused as unimplemented. A `view` is answered with the document, and that first read costs a round trip the custom tool never spends.
 
 Match semantics follow Claude Code's `Edit` tool. Matches must be exact and unique or they are refused. Error messages double as retry prompts.
+
+The **Ambiguous targets** prompts each name a string this document repeats, so the bare needle is one the matcher refuses. The model rarely sends it bare: 217 attempts produced 3 rejections, none of them the ambiguous match these prompts were built to provoke. It resolves the repeat before calling the tool instead, by extending `old_str` past it, setting `replace_all`, splitting into several unique edits, or asking which occurrence was meant. Which way out it took is what the console shows.
 
 ## CORS
 
