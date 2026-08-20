@@ -73,10 +73,10 @@ export function Workspace() {
         <ChatPane
           prompts={doc.document.prompts}
           traps={doc.traps}
-          messages={doc.messages}
-          edits={doc.edits}
+          conversation={doc.conversation}
           runs={doc.runs}
           running={doc.running}
+          replaying={doc.replaying}
           hasKey={Boolean(doc.apiKey)}
           error={doc.error}
           onSend={doc.send}
