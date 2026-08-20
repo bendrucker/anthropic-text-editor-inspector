@@ -301,7 +301,7 @@ function EditCard({ edit, onRevert }: { edit: EditRecord; onRevert: (edit: EditR
               </>
             ) : (
               (path?.during ??
-                'No unique match in the document this app holds, so nothing streams. An earlier structural edit in the same run does not land until commit, so the match may still succeed there.')
+                'No unique match in the document this app holds, so nothing streams. Either the tool result says so and the model retries, or an earlier structural edit in this run lands first and the match succeeds on commit.')
             )}
           </p>
         </div>
