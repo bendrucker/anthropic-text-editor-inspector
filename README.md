@@ -32,7 +32,7 @@ sequenceDiagram
 
 ## Observability
 
-- **Run inspector:** interleaves wire events and this app's decisions in one timeline.
+- **Run inspector:** interleaves wire events and this app's decisions in one timeline, as a console with fixed columns, a text filter that marks its matches, and chips that hide a stream or an event type. Order is always arrival order, since the interleaving is what there is to read.
 - **Input buffer:** shows tool input as one growing string, with `old_str` and `new_str` extracted live and labeled *not started*, *streaming*, or *closed*.
 - **Matcher:** runs the real matching code against the live document with no model or API key.
 - **Replay:** re-runs a finished edit at quarter speed.
