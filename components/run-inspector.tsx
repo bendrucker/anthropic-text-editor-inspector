@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import * as Tabs from '@radix-ui/react-tabs'
 import type { BufferState, TimelineEntry } from '@/lib/timeline'
 import type { Match } from '@/lib/str-replace'
 import type { Probe } from '@/lib/traps'
+import { EventConsole } from './event-console'
 import { MatchSandbox } from './match-sandbox'
 
 interface RunInspectorProps {
@@ -34,11 +35,6 @@ export function RunInspector({
 }: RunInspectorProps) {
   const [open, setOpen] = useState(true)
   const [panel, setPanel] = useState<Panel>('buffer')
-  const scrollRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
-  }, [timeline])
 
   return (
     <section className="flex shrink-0 flex-col border-t border-slate-200 bg-slate-50">
@@ -71,20 +67,8 @@ export function RunInspector({
       </div>
 
       {open && (
-        <div className="grid h-56 grid-cols-[1fr_340px] overflow-hidden border-t border-slate-200">
-          <div ref={scrollRef} className="min-h-0 overflow-y-auto px-5 py-2">
-            {timeline.length === 0 ? (
-              <p className="py-6 text-center text-xs text-slate-400">
-                Ask for an edit. Every event that crosses the wire lands here.
-              </p>
-            ) : (
-              <ol className="space-y-0.5">
-                {timeline.map((entry) => (
-                  <Row key={entry.id} entry={entry} />
-                ))}
-              </ol>
-            )}
-          </div>
+        <div className="grid h-72 grid-cols-[1fr_340px] overflow-hidden border-t border-slate-200">
+          <EventConsole timeline={timeline} />
 
           <Tabs.Root
             value={panel}
@@ -117,39 +101,6 @@ function PanelTab({ value, children }: { value: Panel; children: string }) {
     >
       {children}
     </Tabs.Trigger>
-  )
-}
-
-const TONES = {
-  good: 'text-emerald-700',
-  bad: 'text-amber-700',
-  normal: 'text-slate-700',
-}
-
-function Row({ entry }: { entry: TimelineEntry }) {
-  const wire = entry.source === 'wire'
-
-  return (
-    <li className="flex gap-3 py-0.5 text-[11px] leading-relaxed">
-      <span className="w-12 shrink-0 text-right tabular-nums text-slate-400">
-        {(entry.atMs / 1000).toFixed(2)}s
-      </span>
-      <span
-        className={`w-8 shrink-0 font-medium ${wire ? 'text-blue-500' : 'text-slate-400'}`}
-        title={wire ? 'Arrived on the wire' : 'A decision this app made'}
-      >
-        {wire ? 'wire' : 'app'}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className={`font-mono ${TONES[entry.tone ?? 'normal']}`}>{entry.label}</span>
-        {entry.raw !== undefined && (
-          <span className="ml-2 rounded bg-white px-1 py-0.5 font-mono text-slate-500">
-            {JSON.stringify(entry.raw)}
-          </span>
-        )}
-        {entry.detail && <span className="ml-2 text-slate-400">{entry.detail}</span>}
-      </span>
-    </li>
   )
 }
 
