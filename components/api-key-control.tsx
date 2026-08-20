@@ -21,7 +21,7 @@ function EnvironmentKeyBadge() {
     <Tooltip content={`${keyStore.description} ${keyStore.change}`}>
       <span
         tabIndex={0}
-        className="focus-ring rounded-md border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-500"
+        className="focus-ring whitespace-nowrap rounded-md border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-500"
       >
         Key from dev server
       </span>
@@ -46,7 +46,7 @@ function KeyPopover({ apiKey, onApiKey }: ApiKeyControlProps) {
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger
-        className={`rounded-md border px-2.5 py-1 text-xs font-medium transition ${
+        className={`whitespace-nowrap rounded-md border px-2.5 py-1 text-xs font-medium transition ${
           apiKey
             ? 'border-slate-200 text-slate-500 hover:bg-slate-50'
             : 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100'
