@@ -78,8 +78,9 @@ function explain(key: SpanKey, run: Run, timing: EditTiming): ReactNode {
       <>
         {brief(spans.retries)} spent before the turn that landed this edit, across{' '}
         {countOf((timing.turn ?? 1) - 1, 'earlier turn')}. This is network and model time paid twice.
-        A run reaches it by asking for an edit the document cannot satisfy, which is what the traps
-        and the guardrails switch are for.
+        A run reaches it when the matcher refuses an earlier old_str and sends that back as the tool
+        result. Zero matches is the one refusal the model cannot resolve by looking harder, so an
+        old_str the document does not contain is the reliable way here.
       </>
     )
   }

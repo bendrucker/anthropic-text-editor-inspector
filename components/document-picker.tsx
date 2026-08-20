@@ -64,9 +64,9 @@ export function DocumentPicker({
         disabled={disabled}
         content={
           <>
-            Builds a fresh document from a random seed, planting strings that repeat so the traps
-            offered alongside it are genuinely ambiguous rather than hand-written against one
-            sample.
+            Builds a fresh document from a random seed, planting strings that repeat so the
+            targets offered alongside it are genuinely ambiguous rather than hand-written against
+            one sample.
           </>
         }
       >
