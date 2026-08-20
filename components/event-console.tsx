@@ -628,6 +628,15 @@ const detailId = (id: string) => `event-${id}-detail`
  * A row is not a control, so the event name carries the disclosure instead. The
  * whole row stays clickable for a pointer, which is why the button has to stop
  * the click it already handled from reaching the row underneath.
+ *
+ * The row is deliberately not a tab stop and carries no `aria-expanded` of its
+ * own. Both live here, on the one element that is a control. Putting them on the
+ * row as well would double every openable row: two tab stops to cross it and two
+ * announcements of the same state, on a list that runs to hundreds of rows.
+ *
+ * `focus-ring` rather than the ring the browser draws by default. A row landed on
+ * from the keyboard is the one place in the app that still showed the UA outline,
+ * which is a different width, colour and offset from every other control here.
  */
 function Disclosure({
   open,
@@ -649,7 +658,7 @@ function Disclosure({
         event.stopPropagation()
         onToggle()
       }}
-      className="flex min-w-0 cursor-pointer items-baseline gap-1 text-left"
+      className="focus-ring flex min-w-0 cursor-pointer items-baseline gap-1 rounded-xs text-left"
     >
       {children}
     </button>
