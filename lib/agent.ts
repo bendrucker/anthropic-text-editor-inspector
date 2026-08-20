@@ -135,6 +135,14 @@ export interface EditTiming {
   firstByteMs: number
   toolStartMs: number
   targetMs: number
+  /**
+   * The first three are measured here, from wire events. These last three are
+   * filled in by whoever owns the document, because only it can say when a
+   * change reached the screen and when the run finally stopped.
+   */
+  paintMs?: number
+  settledMs?: number
+  totalMs?: number
 }
 
 export interface AgentHandlers {
@@ -151,6 +159,7 @@ export interface AgentHandlers {
   /** `document` is the working document with any earlier edits from this run already applied. */
   onEditRejected: (event: {
     id: string
+    elapsedMs: number
     message: string
     document: string
     oldStr: string
@@ -159,6 +168,8 @@ export interface AgentHandlers {
   }) => void
   onDone: (event: {
     document: string
+    /** Wall clock from the first request leaving the browser to the last turn ending. */
+    elapsedMs: number
     model: string
     fastMode: boolean
     effort: EffortChoice['id']
@@ -432,7 +443,9 @@ export async function runEdit(options: RunOptions): Promise<void> {
           id,
           oldStr: parsed.oldStr,
           replaceAll: parsed.replaceAll ?? false,
-          elapsedMs: targetMs,
+          // `targetMs` is the run's first target, kept for the timing summary.
+          // A second edit resolves its own target later and says so.
+          elapsedMs: since(),
           timing: { firstByteMs: firstByteMs ?? targetMs, toolStartMs: toolStartMs ?? targetMs, targetMs },
         })
       }
@@ -453,6 +466,7 @@ export async function runEdit(options: RunOptions): Promise<void> {
     if (message.stop_reason !== 'tool_use') {
       handlers.onDone({
         document: workingDocument,
+        elapsedMs: since(),
         model: model.id,
         fastMode,
         effort: model.supportsEffort ? effort : 'auto',
@@ -487,6 +501,7 @@ export async function runEdit(options: RunOptions): Promise<void> {
           record({ label: 'tool_result · is_error', detail: refusal, tone: 'bad' })
           handlers.onEditRejected({
             id: block.id,
+            elapsedMs: since(),
             message: refusal,
             document: workingDocument,
             oldStr: '',
@@ -520,6 +535,7 @@ export async function runEdit(options: RunOptions): Promise<void> {
         })
         handlers.onEditRejected({
           id: block.id,
+          elapsedMs: since(),
           message: 'Tool input was incomplete.',
           document: workingDocument,
           oldStr: '',
@@ -544,6 +560,7 @@ export async function runEdit(options: RunOptions): Promise<void> {
         })
         handlers.onEditRejected({
           id: block.id,
+          elapsedMs: since(),
           message: located.message,
           document: workingDocument,
           oldStr: input.old_str,
