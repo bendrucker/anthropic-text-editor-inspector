@@ -1,0 +1,30 @@
+name: Desktop toolchain
+description: Bun, Rust, and installed dependencies for building the Tauri app.
+
+# CI checks the desktop crate so a release cannot break unnoticed, which only
+# holds while both use the same toolchain. Sharing the setup is what keeps the
+# check honest.
+
+inputs:
+  targets:
+    description: Rust targets to install beyond the host, comma separated.
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - uses: oven-sh/setup-bun@v2
+      with:
+        bun-version-file: package.json
+
+    - uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: ${{ inputs.targets }}
+
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: src-tauri
+
+    - run: bun install --frozen-lockfile
+      shell: bash
