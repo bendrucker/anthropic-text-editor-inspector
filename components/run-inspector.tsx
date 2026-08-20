@@ -1,5 +1,13 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import * as Tabs from '@radix-ui/react-tabs'
+// `Panel` is aliased because this file already calls the tabbed column a panel.
+import {
+  Group,
+  Panel as SplitPanel,
+  Separator,
+  useDefaultLayout,
+  usePanelRef,
+} from 'react-resizable-panels'
 import type { BufferState, TimelineEntry } from '@/lib/timeline'
 import type { Match } from '@/lib/str-replace'
 import type { Probe } from '@/lib/traps'
@@ -24,6 +32,53 @@ interface RunInspectorProps {
 type Panel = 'buffer' | 'matcher' | 'runs'
 
 /**
+ * The console's event grid costs this much before Detail gets a pixel: four
+ * fixed columns, the four gaps between them and the row padding. Detail is
+ * `minmax(0,1fr)` on top of that, so it has no floor of its own and truncates
+ * by design, with the full text one click into the expansion panel.
+ *
+ * #64 arrived at it as arithmetic: `3.75rem`, `3.75rem`, `2.25rem` and
+ * `10.5rem` of track, four `gap-x-2` gaps and the row's `px-3`. Held at
+ * decreasing widths the header's last column first crosses the edge at 359px,
+ * so the number carries about 20px over where the console visibly breaks, which
+ * is what a floor is for.
+ */
+const CONSOLE_FLOOR = 380
+
+/**
+ * Everything in the tabbed column wraps except the tab strip, so the strip is
+ * the column's min-content. Held at decreasing widths with a run in the list,
+ * the Runs trigger crosses the edge at 171px, and it is the strip rather than
+ * anything drawn under it that gives out first: the buffer's blocks wrap, the
+ * matcher's controls wrap, and the run bar is a percentage track inside an
+ * `overflow-hidden` rail whose segments floor at 3px each. All three tabs
+ * measure the same 172px for that reason.
+ *
+ * 200px is that measurement with room for the one part of the strip that grows,
+ * the run count in the Runs label. Each further digit costs about 6px at
+ * `text-[11px]`, so this holds well past any run count a session reaches.
+ */
+const PANELS_FLOOR = 200
+
+/** The rule the separator draws, which used to be the panel column's `border-l`. */
+const SEPARATOR_WIDTH = 1
+
+/**
+ * Where the split sits when nothing has been dragged, and what the tabs were
+ * fixed at before they could move.
+ */
+const PANELS_DEFAULT = 340
+
+/**
+ * The separator is one pixel wide and the pointer should not have to find one
+ * pixel. The library hit-tests a band this wide centred on the rule, so the
+ * target grows without the rule getting heavier. 12px puts 6px either side,
+ * which on the panel side stays inside the tab list's own `px-3` and so never
+ * takes a click that was meant for a tab.
+ */
+const HIT_TARGET = { coarse: 24, fine: 12 }
+
+/**
  * The two streams side by side: what arrived on the wire, and what the app did
  * about it. Reading the interleaving is the point, so neither gets its own tab.
  */
@@ -41,6 +96,44 @@ export function RunInspector({
   const [open, setOpen] = useState(true)
   const [panel, setPanel] = useState<Panel>('buffer')
   const { rows, turns } = useMemo(() => counts(timeline), [timeline])
+
+  // A split the reader has to set again on every load is worse than one they
+  // cannot set at all, so it is remembered. Only their own drags and key
+  // presses are written back: a narrow window clamps the split on its way past
+  // the floors, and saving that would let a resize quietly eat a preference the
+  // reader never changed.
+  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
+    id: 'run-inspector-split',
+    onlySaveAfterUserInteractions: true,
+  })
+
+  // The width the panel column was last *given*, as opposed to the width it
+  // happens to have. The group is floored at the console's floor plus this, so
+  // a viewport too narrow for the chosen split scrolls rather than overwriting
+  // it. Squeezing would be the quieter answer and is the wrong one: the panel
+  // comes back from a scroll, and it does not come back from a clamp. Dragging
+  // the window narrow and wide again would silently cost the reader the split
+  // they set, with nothing to undo.
+  //
+  // Only a drag or a key press moves this, so it cannot chase its own tail
+  // through the min-width it feeds.
+  const panelsRef = usePanelRef()
+  const [chosen, setChosen] = useState(PANELS_DEFAULT)
+  const remember = useCallback(() => {
+    const size = panelsRef.current?.getSize()
+    if (size) setChosen(Math.round(size.inPixels))
+  }, [panelsRef])
+
+  const layoutChanged = useCallback(
+    (
+      layout: Parameters<typeof onLayoutChanged>[0],
+      meta: Parameters<typeof onLayoutChanged>[1],
+    ) => {
+      onLayoutChanged(layout, meta)
+      if (meta.isUserInteraction) remember()
+    },
+    [onLayoutChanged, remember],
+  )
 
   return (
     <section
@@ -111,49 +204,108 @@ export function RunInspector({
         // added makes the tall case worse.
         <div
           id="run-inspector-panels"
-          // The console's event grid costs 380px before Detail gets a pixel:
-          // four fixed columns, the four gaps between them and the row padding.
-          // Detail is `minmax(0,1fr)` on top of that, so it has no floor of its
-          // own and truncates by design, with the full text one click into the
-          // expansion panel.
+          // Where the split sits is the reader's business. Whether it fits is
+          // arithmetic: the console's floor plus the width the panel column was
+          // given is the least the pair can be laid out in, and the group
+          // carries that as its `min-width`. So this element scrolls at exactly
+          // the viewport where the chosen split stops being possible, and a
+          // reader who narrows the panel moves that point down with them.
           //
-          // That makes side by side arithmetic rather than a matter of how wide
-          // this panel is. At a 650px viewport even a 260px panel would leave
-          // Detail about 10px. 340px is what the panel's own tabs read well at,
-          // and narrowing it moves the width where both fit by a viewport or
-          // two without changing the outcome.
-          //
-          // So the pair scrolls once it stops fitting. `hidden` cut the panel
-          // off at its right edge with nothing to say so, and focusing a tab
-          // inside it scrolled the console away with no way to scroll back.
-          className="grid h-[clamp(18rem,34vh,32.5rem)] grid-cols-[1fr_340px] overflow-x-auto overflow-y-hidden border-t border-slate-200"
+          // `hidden` cut the panel off at its right edge with nothing to say
+          // so, and focusing a tab inside it scrolled the console away with no
+          // way to scroll back. Scrolling only takes over once the width to
+          // lay both out side by side is genuinely gone.
+          className="h-[clamp(18rem,34vh,32.5rem)] overflow-x-auto overflow-y-hidden border-t border-slate-200"
         >
-          <EventConsole timeline={timeline} />
-
-          <Tabs.Root
-            value={panel}
-            onValueChange={(next) => setPanel(next as Panel)}
-            className="flex min-h-0 flex-col border-l border-slate-200"
+          <Group
+            id="run-inspector-split"
+            orientation="horizontal"
+            defaultLayout={defaultLayout}
+            onLayoutChanged={layoutChanged}
+            resizeTargetMinimumSize={HIT_TARGET}
+            style={{
+              minWidth: CONSOLE_FLOOR + SEPARATOR_WIDTH + Math.max(chosen, PANELS_FLOOR),
+            }}
           >
-            <Tabs.List className="flex shrink-0 gap-1 border-b border-slate-200 px-3 py-1.5">
-              <PanelTab value="buffer">Input buffer</PanelTab>
-              <PanelTab value="matcher">Matcher</PanelTab>
-              {/* Run telemetry belongs with the timeline it summarises. In a tab
-                  it also scrolls, so five runs cannot squeeze the panel it
-                  shares a column with. */}
-              <PanelTab value="runs">Runs{runs.length > 0 && ` · ${runs.length}`}</PanelTab>
-            </Tabs.List>
+            {/* Both panels clip rather than scroll. The library gives a panel
+                `overflow: auto`, which would answer a column that is one pixel
+                too narrow with a scrollbar instead of a wider column. The
+                floors below are what keeps that from happening, and a panel
+                that cannot honour them should be visibly wrong, not quietly
+                scrollable. */}
+            <SplitPanel
+              id="console"
+              minSize={`${CONSOLE_FLOOR}px`}
+              className="flex min-h-0 flex-col"
+              style={{ overflow: 'hidden' }}
+            >
+              <EventConsole timeline={timeline} />
+            </SplitPanel>
 
-            <Tabs.Content value="buffer" className="flex min-h-0 flex-1 flex-col">
-              <BufferPanel buffer={buffer} />
-            </Tabs.Content>
-            <Tabs.Content value="matcher" className="flex min-h-0 flex-1 flex-col">
-              <MatchSandbox canonical={canonical} probes={probes} onShowMatches={onShowMatches} />
-            </Tabs.Content>
-            <Tabs.Content value="runs" className="flex min-h-0 flex-1 flex-col">
-              <RunHistory runs={runs} />
-            </Tabs.Content>
-          </Tabs.Root>
+            {/* The rule this draws is the `border-l` the panel column used to
+                carry, in `control` rather than `slate-200`: #63 spends that
+                token on an edge a reader has to find in order to operate it,
+                and dragging this one is now the only way to change the split.
+                It darkens further on hover, focus and drag.
+
+                The focus ring is the app's own, and the group clips its top and
+                bottom strokes against the drawer's edges. What survives is the
+                pair of vertical strokes, which is the part of the ring that
+                marks a vertical rule anyway. */}
+            <Separator
+              aria-label="Resize the event console"
+              className="focus-ring w-px cursor-col-resize bg-control transition-colors data-[separator=active]:bg-control-strong data-[separator=focus]:bg-control-strong data-[separator=hover]:bg-control-strong"
+            />
+
+            <SplitPanel
+              id="panels"
+              panelRef={panelsRef}
+              defaultSize={`${PANELS_DEFAULT}px`}
+              minSize={`${PANELS_FLOOR}px`}
+              // A saved split arrives as a percentage of a group whose width
+              // this panel is about to change, so the first size it settles on
+              // is the one to remember. Later calls are the console absorbing a
+              // window resize, which is not a choice anyone made.
+              onResize={(size, _id, previous) => {
+                if (previous === undefined) setChosen(Math.round(size.inPixels))
+              }}
+              // A wider window should widen the console, which is where the
+              // rows are, and leave the tabs the width they were given. That is
+              // what the fixed track used to do for free.
+              groupResizeBehavior="preserve-pixel-size"
+              className="flex min-h-0 flex-col"
+              style={{ overflow: 'hidden' }}
+            >
+              <Tabs.Root
+                value={panel}
+                onValueChange={(next) => setPanel(next as Panel)}
+                className="flex min-h-0 flex-1 flex-col"
+              >
+                <Tabs.List className="flex shrink-0 gap-1 border-b border-slate-200 px-3 py-1.5">
+                  <PanelTab value="buffer">Input buffer</PanelTab>
+                  <PanelTab value="matcher">Matcher</PanelTab>
+                  {/* Run telemetry belongs with the timeline it summarises. In a
+                      tab it also scrolls, so five runs cannot squeeze the panel
+                      it shares a column with. */}
+                  <PanelTab value="runs">Runs{runs.length > 0 && ` · ${runs.length}`}</PanelTab>
+                </Tabs.List>
+
+                <Tabs.Content value="buffer" className="flex min-h-0 flex-1 flex-col">
+                  <BufferPanel buffer={buffer} />
+                </Tabs.Content>
+                <Tabs.Content value="matcher" className="flex min-h-0 flex-1 flex-col">
+                  <MatchSandbox
+                    canonical={canonical}
+                    probes={probes}
+                    onShowMatches={onShowMatches}
+                  />
+                </Tabs.Content>
+                <Tabs.Content value="runs" className="flex min-h-0 flex-1 flex-col">
+                  <RunHistory runs={runs} />
+                </Tabs.Content>
+              </Tabs.Root>
+            </SplitPanel>
+          </Group>
         </div>
       )}
     </section>
@@ -188,7 +340,8 @@ function BufferPanel({ buffer }: { buffer: BufferState | null }) {
 
   return (
     // The panel is the only scroller in this column. Capping the blocks inside
-    // it would put a scrollbar inside a scrollbar inside 340px.
+    // it would put a scrollbar inside a scrollbar inside a column the reader
+    // can drag down to 200px.
     <div className="flex min-h-0 flex-col gap-2 overflow-y-auto px-4 py-3">
       <div>
         <p className="mb-1 text-[11px] font-medium text-slate-500">
