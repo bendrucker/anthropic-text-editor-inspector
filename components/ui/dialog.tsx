@@ -24,7 +24,6 @@ export function DialogContent({
     <Primitive.Portal>
       <Primitive.Overlay className="fixed inset-0 z-50 bg-slate-900/20" />
       <Primitive.Content
-        aria-describedby={undefined}
         className="fixed left-1/2 top-1/2 z-50 w-64 -translate-x-1/2 -translate-y-1/2 rounded-lg border border-slate-200 bg-white p-5 shadow-lg focus:outline-none"
       >
         <Primitive.Title className="sr-only">{title}</Primitive.Title>

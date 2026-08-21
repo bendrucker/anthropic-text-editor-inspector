@@ -5,17 +5,11 @@ import { Tooltip } from './ui/tooltip'
 const SOURCE_URL = 'https://github.com/bendrucker/anthropic-text-editor-inspector'
 const AUTHOR_URL = 'https://bendrucker.me'
 
-/**
- * Rows stack in one centred column, so a second fact about this app is a row
- * added below the source link rather than a layout change.
- */
+/** A second fact about this app is another row in the column, at no layout cost. */
 export function AppInfo() {
   return (
     <Dialog>
       <Tooltip content="Who made this app and where its source lives.">
-        {/* 16px where the GitHub mark below is 14, for the reason that mark's
-            own comment gives: a filled glyph carries more ink than a stroked
-            one in the same square. */}
         <DialogTrigger
           aria-label="About this app"
           className="focus-ring shrink-0 rounded text-slate-500 transition hover:text-slate-700"

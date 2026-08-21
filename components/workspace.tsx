@@ -74,10 +74,17 @@ export function Workspace() {
             disabled={doc.running}
           />
           <ApiKeyControl apiKey={doc.apiKey} onApiKey={doc.setApiKey} />
-          {/* A peer of the control groups, on this row's `gap-x-4` rather than
-              the `gap-2` the groups use internally. At 8px the icon reads as a
-              hint attached to the key control it sits beside, which is the one
-              thing it does not describe. */}
+          {/* A peer of the control groups, on this row's `gap-x-4`. At the
+              `gap-2` a group uses internally, the icon reads as a hint on the
+              key control beside it, which is the one thing it does not
+              describe.
+
+              The 16px of icon and 16px of gap are what this half could not
+              spare when the source link was measured into the other one. It
+              still cannot: the wrap that grows the header from 94px to 118px
+              moves from 405px to 440px. That band sits below where this app
+              has a layout at all, since `main` holds a 380px chat rail beside
+              the document. */}
           <AppInfo />
         </div>
       </header>
