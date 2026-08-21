@@ -7,58 +7,7 @@ import { RunInspector } from './run-inspector'
 import { ToolSetup } from './tool-setup'
 import { ApiKeyControl } from './api-key-control'
 import { DocumentPicker } from './document-picker'
-import { Tooltip } from './ui/tooltip'
-
-const SOURCE_URL = 'https://github.com/bendrucker/anthropic-text-editor-inspector'
-
-/**
- * lucide ships no brand icons at any version this app can install, so the mark
- * is inlined instead of imported: GitHub's own `mark-github-16` octicon, path
- * and `viewBox` untouched, with `fill` handed to `currentColor` so the anchor
- * drives it. A dependency for one glyph is not worth it. GitHub's logo guidance
- * allows the Invertocat standalone where the brand is already established, and
- * the accessible name and tooltip both say GitHub.
- *
- * That guidance also fixes the colour to white, black, grey, or green and
- * forbids scaling the mark non-uniformly, which leaves the box as the only
- * tuning dimension. 14px, not the 16 the `Code` chevrons had: a filled mark
- * carries more ink than a two-stroke glyph in the same square, and 16 read
- * heavier than everything else in this header.
- *
- * `slate-500` is the floor rather than the aesthetic pick. The glyph is the
- * whole control, so 1.4.11 applies to it the way #63 applied it to a border,
- * and `slate-400` is the 2.63:1 that PR measured and rejected. It also happens
- * to be what the quietest text in this header already uses.
- */
-function GitHubMark() {
-  return (
-    <svg
-      viewBox="0 0 16 16"
-      fill="currentColor"
-      aria-hidden="true"
-      focusable="false"
-      className="h-3.5 w-3.5"
-    >
-      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z" />
-    </svg>
-  )
-}
-
-function SourceLink() {
-  return (
-    <Tooltip content="This app's source on GitHub.">
-      <a
-        href={SOURCE_URL}
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label="Source on GitHub"
-        className="focus-ring shrink-0 rounded text-slate-500 transition hover:text-slate-700"
-      >
-        <GitHubMark />
-      </a>
-    </Tooltip>
-  )
-}
+import { AppInfo } from './app-info'
 
 export function Workspace() {
   const doc = useLiveDocument()
@@ -75,14 +24,7 @@ export function Workspace() {
           halves stack, because the alternative is every control in the right
           half wrapping its own label into a column. */}
       <header className="flex flex-col gap-2 border-b border-slate-200 px-6 py-3 md:flex-row md:items-center md:justify-between">
-        {/* Far right is where a source link usually goes, and it does not fit
-            there. At 480 the controls half is 407px of content in a 432px row,
-            and an icon plus that half's gap needs 32: it wraps, and the header
-            grows from 94px to 118px. This half is the one built to give way, so
-            the 28px comes out of the description, which truncates for a living
-            and still reads 271px wide at 1024. */}
         <div className="flex min-w-0 items-center gap-3">
-          <SourceLink />
           <DocumentPicker
             document={doc.document}
             generated={doc.generated}
@@ -132,6 +74,18 @@ export function Workspace() {
             disabled={doc.running}
           />
           <ApiKeyControl apiKey={doc.apiKey} onApiKey={doc.setApiKey} />
+          {/* A peer of the control groups, on this row's `gap-x-4`. At the
+              `gap-2` a group uses internally, the icon reads as a hint on the
+              key control beside it, which is the one thing it does not
+              describe.
+
+              The 16px of icon and 16px of gap are what this half could not
+              spare when the source link was measured into the other one. It
+              still cannot: the wrap that grows the header from 94px to 118px
+              moves from 405px to 440px. That band sits below where this app
+              has a layout at all, since `main` holds a 380px chat rail beside
+              the document. */}
+          <AppInfo />
         </div>
       </header>
 
