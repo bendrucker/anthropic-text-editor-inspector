@@ -272,7 +272,7 @@ export function EventConsole({ timeline }: EventConsoleProps) {
         <div
           ref={scrollRef}
           onScroll={(event) => setFollowing(atBottom(event.currentTarget))}
-          className="min-h-0 flex-1 overflow-y-auto px-3 py-1"
+          className="min-h-0 flex-1 overflow-y-auto px-3"
         >
           {timeline.length === 0 ? (
             <p className="py-6 text-center text-xs text-slate-500">
@@ -286,7 +286,11 @@ export function EventConsole({ timeline }: EventConsoleProps) {
               </button>
             </p>
           ) : (
-            <div ref={rowsRef}>
+            // The list carries its own vertical padding. A sticky inset is
+            // measured from the scroller's content box, so padding there parks
+            // every turn band that much below the top of the view and leaves a
+            // strip of rows sliding through above it.
+            <div ref={rowsRef} className="py-1">
               {sections.map((section) => (
                 // A turn is a group of rows, which is what a row group is for.
                 // It also bounds its own separator, so the heading leaves with
