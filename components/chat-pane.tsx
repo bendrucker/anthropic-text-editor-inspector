@@ -59,8 +59,12 @@ export function ChatPane({
     streaming && (!tail || tail.kind === 'prompt' || (tail.kind === 'edit' && isSettled(tail.edit)))
 
   useEffect(() => {
+    // An empty conversation puts the briefing in the rail instead, which runs
+    // taller than it with no tail to follow. That one reads from the top.
+    const empty = conversation.length === 0
+
     scrollRef.current?.scrollTo({
-      top: scrollRef.current.scrollHeight,
+      top: empty ? 0 : scrollRef.current.scrollHeight,
       // Every fragment grows the tail card, and a smooth scroll restarted a few
       // hundred times never arrives anywhere. Follow instantly while it streams.
       behavior: streaming ? 'auto' : 'smooth',
