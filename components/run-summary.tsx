@@ -438,8 +438,19 @@ function RunRow({
             <>
               <p className="text-[11px] text-slate-600">{headline(timing, landed)}</p>
               {reason}
+              {/* Held at the reason's own tone, because the two are peers.
+                  Both are subordinate to the headline and neither outranks the
+                  other, so any tone step here would assert a rank that does not
+                  exist and space has to do the separating instead.
+
+                  `space-y-1` alone leaves 9px of white between them, while the
+                  reason's own wrapped lines sit 4px apart and the headline sits
+                  11px above. A reason that wraps to three lines then gains what
+                  reads as a fourth. `mt-2` measures 13px, past the headline's
+                  11px, and 15px on a landed run where this line follows the
+                  headline directly. */}
               {(timing.turn ?? 1) > 1 && (
-                <p className="text-[10px] text-slate-500">
+                <p className="mt-2 text-[10px] text-slate-500">
                   {landed ? 'Reached the edit on turn' : 'Gave up on turn'} {timing.turn}, after{' '}
                   {secs(spansOf(timing, landed).retries)} of{' '}
                   {countOf((timing.turn ?? 1) - 1, 'earlier attempt')}.
