@@ -286,11 +286,13 @@ export function EventConsole({ timeline }: EventConsoleProps) {
               </button>
             </p>
           ) : (
-            // The list carries its own vertical padding. A sticky inset is
-            // measured from the scroller's content box, so padding there parks
-            // every turn band that much below the top of the view and leaves a
-            // strip of rows sliding through above it.
-            <div ref={rowsRef} className="py-1">
+            // Nothing may pad the top of the list, or of the scroller around
+            // it. A sticky inset is measured from the top of the scrollport, so
+            // that padding is space a stuck band never occupies, while normal
+            // flow still starts below it. The first band rests that far low and
+            // the opening pixels of scroll walk it up one pixel at a time. The
+            // bottom keeps its padding, because nothing sticks to that edge.
+            <div ref={rowsRef} className="pb-1">
               {sections.map((section) => (
                 // A turn is a group of rows, which is what a row group is for.
                 // It also bounds its own separator, so the heading leaves with
