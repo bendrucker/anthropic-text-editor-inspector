@@ -5,18 +5,13 @@
 **[Open Web App](https://bendrucker.github.io/anthropic-text-editor-inspector/)**
 
 ![The inspector after a finished run: the edited document, the event console grouped by turn, and the run history](docs/screenshot.png)
-
 ![One edit landing: the old paragraph collapses to the characters received so far, and the replacement fills in as the model streams it](docs/live-edit.gif)
-
-That edit replays at quarter speed. [A full run](docs/screencast.mp4) shows the prompt, the live stream, and the console that recorded it.
 
 ## Getting Started
 
 This application is bring-your-own-key (BYOK). You must first create an [API key](https://platform.claude.com/dashboard) from your Claude organization. This key is stored on your device and only sent to Anthropic's servers.
 
-## Dev Server Key
-
-Set `ANTHROPIC_API_KEY` in your shell or in a gitignored `.env.local`. `bun run dev` then authenticates for you: the dev server forwards requests to the API and attaches the key on the way through, so the browser never receives it. A badge naming the dev server as the key source replaces the prompt, and a key you pasted earlier is ignored while the variable is set. `bun run preview` serves a build over a server too and deliberately attaches nothing, since that would leave an authenticated relay listening on the port.
+You can also install a Mac desktop version of the application from [releases](https://github.com/bendrucker/anthropic-text-editor-inspector/releases). The Mac app is required for Claude organizations with Zero Data Retention enabled, since this blocks CORS requests.
 
 ## Sequence
 
