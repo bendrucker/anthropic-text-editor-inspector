@@ -281,7 +281,7 @@ const CONNECTION_HELP: Record<Transport, string> = {
   proxy:
     'The request never reached api.anthropic.com. It goes through the dev server, so either that server stopped or it could not reach the API itself. The terminal running `bun run dev` has the real error.',
   tauri:
-    'The request failed in Rust, which is what issues it in the desktop build. Nothing was refused on origin, so this is a network, DNS, or TLS failure on this machine.',
+    'The request failed in Rust, which is what issues it in the desktop build. It sends no origin for the API to refuse, so this is a network, DNS, or TLS failure on this machine.',
 }
 
 /** An error body can be a whole HTML gateway page. A clause of it is evidence, the rest is noise. */
@@ -377,19 +377,33 @@ function describeApiError(cause: APIError): string {
   return `${sentence}${evidence}${request}`
 }
 
+/**
+ * What each transport has to say about itself for the API to answer it.
+ *
+ * Only `direct` is a browser request, and the API wants one declared. Through
+ * the dev server the request stops being a browser request before the API sees
+ * it, so it says nothing.
+ *
+ * The Tauri plugin attaches the webview's own origin to every request Rust
+ * issues, `tauri://localhost` packaged and the dev server's URL under `tauri
+ * dev`, which is exactly the browser request a custom-retention organization
+ * refuses. Its `unsafe-headers` feature, enabled in `src-tauri/Cargo.toml`,
+ * makes it drop an `Origin` sent as the empty string instead.
+ */
+export const TRANSPORT_HEADERS: Record<Transport, Record<string, string>> = {
+  direct: { 'anthropic-dangerous-direct-browser-access': 'true' },
+  proxy: {},
+  tauri: { origin: '' },
+}
+
 export function createClient(apiKey: string) {
   return new Anthropic({
     apiKey,
     baseURL: BASE_URL,
     dangerouslyAllowBrowser: true,
-    // Rust issues the request and streams the response back over IPC, so the
-    // webview never opens a connection the API could refuse on origin.
+    // Rust issues the request and streams the response back over IPC.
     ...(TRANSPORT === 'tauri' ? { fetch: tauriFetch } : {}),
-    // The header only means anything on a direct call. Through a proxy or from
-    // Rust the request stops being a browser request before the API sees it.
-    ...(TRANSPORT === 'direct'
-      ? { defaultHeaders: { 'anthropic-dangerous-direct-browser-access': 'true' } }
-      : {}),
+    defaultHeaders: TRANSPORT_HEADERS[TRANSPORT],
   })
 }
 

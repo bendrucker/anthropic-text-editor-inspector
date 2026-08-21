@@ -7,8 +7,9 @@
  * build points at it. Nothing about the key changes: it still lives in this
  * browser and still travels no further than the machine running the dev server.
  *
- * The desktop build sidesteps all of it, because Rust makes the request and
- * there is no origin to refuse.
+ * The desktop build sidesteps all of it by making the request from Rust with no
+ * origin on it. The HTTP plugin would otherwise attach the webview's own, which
+ * is the browser request being refused, so the build suppresses it.
  *
  * A deployed web build calls the API directly, which works wherever direct
  * browser access is allowed. Point a self-hosted build at your own proxy by

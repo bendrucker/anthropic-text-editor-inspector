@@ -1,21 +1,31 @@
 /**
- * Asserts what leaves the browser: the prior turns, and the tool declaration.
+ * Asserts what leaves the browser: the prior turns, the tool declaration, and
+ * the headers the transport puts on the request.
  *
  * Without the turns the model cannot answer a follow-up or its own clarifying
  * question, which looks like working chat right up until a user replies to one.
  * Stubs fetch so this runs with no API key and no network.
  */
-import { runEdit, stripDanglingToolUse, type ConversationTurn } from '@/lib/agent'
-import type { AgentHandlers } from '@/lib/agent'
+import Anthropic from '@anthropic-ai/sdk'
+import {
+  runEdit,
+  stripDanglingToolUse,
+  TRANSPORT_HEADERS,
+  type AgentHandlers,
+  type ConversationTurn,
+} from '@/lib/agent'
+import { TRANSPORT } from '@/lib/endpoint'
+import { DEFAULT_MODEL } from '@/lib/models'
 
 const requests: {
+  headers: Headers
   messages: { role: string; content: unknown }[]
-  tools: Record<string, unknown>[]
+  tools?: Record<string, unknown>[]
 }[] = []
 
 const realFetch = globalThis.fetch
-globalThis.fetch = (async (_url: string, init: { body: string }) => {
-  requests.push(JSON.parse(init.body))
+globalThis.fetch = (async (_url: string, init: { body: string; headers: HeadersInit }) => {
+  requests.push({ ...JSON.parse(init.body), headers: new Headers(init.headers) })
   return new Response(JSON.stringify({ error: { message: 'stubbed' } }), {
     status: 401,
     headers: { 'content-type': 'application/json' },
@@ -51,9 +61,23 @@ await runEdit({ ...base, prompt: 'the pipeline one', history: asked }).catch(() 
 // instead of describing one, and has nowhere to put a user-defined-tool field.
 await runEdit({ ...base, prompt: 'raise it', editorTool: 'builtin' }).catch(() => {})
 
+// The desktop build asks the Tauri HTTP plugin to drop the origin it would
+// otherwise take from the webview, and an empty header value is how it asks.
+// An SDK that treated the empty string as nothing to send would leave the
+// origin on, which is the browser request a custom-retention org refuses.
+const suppressed = new Anthropic({
+  apiKey: 'sk-ant-stub',
+  dangerouslyAllowBrowser: true,
+  defaultHeaders: TRANSPORT_HEADERS.tauri,
+})
+await suppressed.messages
+  .create({ model: DEFAULT_MODEL, max_tokens: 1, messages: [{ role: 'user', content: 'hi' }] })
+  .catch(() => {})
+
 globalThis.fetch = realFetch
 
 const [first, second, builtin] = requests
+const origin = requests.at(-1)?.headers
 const roles = (request: (typeof requests)[number]) => request.messages.map((m) => m.role).join(',')
 
 const checks: [string, boolean][] = [
@@ -64,12 +88,22 @@ const checks: [string, boolean][] = [
     JSON.stringify(second.messages[1]?.content ?? null).includes('Which Enterprise row?'),
   ],
   ['the reply is the last turn', second.messages.at(-1)?.content === 'the pipeline one'],
-  ['the built-in tool goes out by version', builtin.tools[0]?.type === 'text_editor_20250728'],
+  ['the built-in tool goes out by version', builtin.tools?.[0]?.type === 'text_editor_20250728'],
   [
     'the built-in tool carries no streaming control',
-    !('eager_input_streaming' in (builtin.tools[0] ?? {})),
+    !('eager_input_streaming' in (builtin.tools?.[0] ?? {})),
   ],
-  ['the custom tool still asks for its input early', first.tools[0]?.eager_input_streaming === true],
+  [
+    'the custom tool still asks for its input early',
+    first.tools?.[0]?.eager_input_streaming === true,
+  ],
+  [
+    "this build sends its transport's headers",
+    Object.entries(TRANSPORT_HEADERS[TRANSPORT]).every(
+      ([name, value]) => first.headers.get(name) === value,
+    ),
+  ],
+  ['the desktop build sends an origin for the plugin to drop', origin?.get('origin') === ''],
 ]
 
 // A turn that stopped for any reason other than tool_use can still carry a
