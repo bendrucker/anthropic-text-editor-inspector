@@ -30,7 +30,7 @@ Nothing was discarded on the grounds of condition alone. Two boxes of unsalvagea
 
 ## Arrangement
 
-The collection is arranged in six series, all of them divisions the office itself used. Where the original order survived it was kept, including where it is inconvenient. The correspondence runs on a fiscal year that starts in April, and splitting a calendar year across two boxes was preferred to reordering files the cannery had kept one way for six decades.
+The collection is arranged in five series, all of them divisions the office itself used. Where the original order survived it was kept, including where it is inconvenient. The correspondence runs on a fiscal year that starts in April, and splitting a calendar year across two boxes was preferred to reordering files the cannery had kept one way for six decades.
 
 ## Correspondence
 
