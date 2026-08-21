@@ -6,6 +6,7 @@ import nightSkyLog from '@/content/night-sky-log.md?raw'
 import apiMigration from '@/content/api-migration.md?raw'
 import reefSurvey from '@/content/reef-survey.md?raw'
 import letterpress from '@/content/letterpress.md?raw'
+import canneryRecords from '@/content/cannery-records.md?raw'
 import { documentExtensions, parse } from './markdown'
 import { resolveTarget } from './positions'
 import { locateEdit } from './str-replace'
@@ -154,7 +155,7 @@ const SPECS: DocumentSpec[] = [
   {
     id: 'letterpress',
     title: 'Monotype Casting',
-    description: 'Long prose and headings, with no tables to complicate the match.',
+    description: 'Headings and paragraphs and nothing else, where every match lands in inline text.',
     markdown: letterpress.trimEnd(),
     lead: {
       target: 'within about a decade',
@@ -163,6 +164,21 @@ const SPECS: DocumentSpec[] = [
     prompts: [
       'Tighten the opening section.',
       'The closing section hedges. Make it direct.',
+    ],
+  },
+  {
+    id: 'cannery-records',
+    title: 'Cannery Records',
+    description: 'The same plain prose at fifteen hundred words, where the match sits off screen.',
+    markdown: canneryRecords.trimEnd(),
+    lead: {
+      target: "four months of one archivist's time",
+      prompt:
+        'In Outstanding Work, replace "four months of one archivist\'s time" with "six months of one archivist\'s time".',
+    },
+    prompts: [
+      'Tighten the Appraisal section.',
+      'The Condition on Arrival section buries the mold. Lead with it.',
     ],
   },
 ]
