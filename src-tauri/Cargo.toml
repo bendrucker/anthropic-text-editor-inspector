@@ -23,5 +23,7 @@ serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
 tauri = { version = "2.11.3", features = [] }
 tauri-plugin-log = "2"
-tauri-plugin-http = "2"
+# `unsafe-headers` lets the frontend suppress the Origin the plugin would
+# otherwise attach from the webview URL. See `TRANSPORT_HEADERS` in `lib/agent.ts`.
+tauri-plugin-http = { version = "2", features = ["unsafe-headers"] }
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
