@@ -4,10 +4,11 @@ export const Dialog = Primitive.Root
 export const DialogTrigger = Primitive.Trigger
 
 /**
- * `z-50` clears the tooltip layer. Popovers and selects sit at `z-30` and are
- * dismissed by the click that opens a dialog, so they never compete. The
- * tooltip on the trigger sits at `z-40` and Radix leaves it mounted through
- * that click, so anything lower gets a tooltip painted over the overlay.
+ * `z-50` is the top of the app's layer scale, above the console chrome at
+ * `z-10` and `z-20`, popovers and selects at `z-30`, and tooltips at `z-40`.
+ * The console chrome is the live constraint, because it is in the page and
+ * stays mounted under an open dialog. The portalled layers all dismiss on the
+ * click that opens one, so they never get to compete.
  *
  * The title is the accessible name Radix requires and nothing this dialog needs
  * to say twice: it holds one sentence and one link, and a heading over two rows

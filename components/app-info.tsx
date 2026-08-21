@@ -1,6 +1,5 @@
 import { Info } from 'lucide-react'
 import { Dialog, DialogContent, DialogTrigger } from './ui/dialog'
-import { Tooltip } from './ui/tooltip'
 
 const SOURCE_URL = 'https://github.com/bendrucker/anthropic-text-editor-inspector'
 const AUTHOR_URL = 'https://bendrucker.me'
@@ -9,14 +8,12 @@ const AUTHOR_URL = 'https://bendrucker.me'
 export function AppInfo() {
   return (
     <Dialog>
-      <Tooltip content="Who made this app and where its source lives.">
-        <DialogTrigger
-          aria-label="About this app"
-          className="focus-ring shrink-0 rounded text-slate-500 transition hover:text-slate-700"
-        >
-          <Info className="size-4" />
-        </DialogTrigger>
-      </Tooltip>
+      <DialogTrigger
+        aria-label="About this app"
+        className="focus-ring shrink-0 rounded text-slate-500 transition hover:text-slate-700"
+      >
+        <Info className="size-4" />
+      </DialogTrigger>
 
       <DialogContent title="About this app">
         <div className="flex flex-col items-center gap-4 text-center">
