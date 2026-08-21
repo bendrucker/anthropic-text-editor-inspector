@@ -169,7 +169,7 @@ const SPECS: DocumentSpec[] = [
   {
     id: 'cannery-records',
     title: 'Cannery Records',
-    description: 'The same plain prose at fifteen hundred words, where the match sits off screen.',
+    description: 'Plain prose at three times the length of the rest, where the match sits off screen.',
     markdown: canneryRecords.trimEnd(),
     lead: {
       target: "four months of one archivist's time",
