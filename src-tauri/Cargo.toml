@@ -1,6 +1,6 @@
 [package]
 name = "anthropic-text-editor-inspector"
-version = "0.2.0"
+version = "0.2.1"
 description = "Watch Claude edit a document through a streaming text editor tool."
 authors = ["Ben Drucker"]
 license = "MIT"
